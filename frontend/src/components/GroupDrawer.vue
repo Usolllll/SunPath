@@ -46,6 +46,16 @@ const planner = usePlanner();
         </div>
       </div>
       <h3>历年录取位次趋势</h3>
+      <p
+        v-if="group.history_rank_min != null && group.history_rank_max != null"
+        class="notice compact"
+      >
+        近三年位次范围（模拟）：{{ number(group.history_rank_min) }} –
+        {{
+          number(group.history_rank_max)
+        }}
+        位。位次值越小排名越靠前，该区间不是当年录取线。
+      </p>
       <TrendChart
         v-if="group.history.length"
         :groups="[group]"

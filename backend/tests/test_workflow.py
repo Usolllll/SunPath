@@ -1,11 +1,13 @@
 """Real REST workflows against a disposable SQLite database, without touching .env or local user data."""
 import csv
 import io
+import json
 import os
 import secrets
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 temporary = tempfile.TemporaryDirectory(prefix='sunpath-test-')
 os.environ['DATABASE_URL'] = 'sqlite:///' + (Path(temporary.name) / 'test.db').as_posix()
@@ -19,6 +21,9 @@ from app.seed import seed
 from app.core.database import engine, SessionLocal
 from app.services.recommender import recommend, balanced_plan
 from app.models.entities import Profile
+from app.schemas.chat import ChatOut
+from app.services.ai_matching import selection_context, validate_selection
+from fastapi import HTTPException
 
 PROFILE = {'province': '浙江', 'exam_year': 2026, 'score': 628, 'rank': 22580, 'subjects': ['物理', '化学', '生物'], 'regions': ['浙江', '江苏', '上海'], 'majors': ['计算机', '电子信息']}
 
@@ -55,6 +60,106 @@ class WorkflowTests(unittest.TestCase):
         result = self.profile()
         self.assertEqual(result['profile']['rank'], 22580)
         self.assertEqual(self.client.get('/api/auth/me', headers=self.headers).json()['profile']['subjects'], PROFILE['subjects'])
+
+    def test_chat_requires_auth_and_context_can_be_disabled(self):
+        self.assertEqual(self.client.post('/api/chat', json={'messages': [{'role': 'user', 'content': '问题'}]}).status_code, 401)
+        self.assertEqual(self.client.get('/api/chat/context').status_code, 401)
+        self.profile()
+        reply = ChatOut(content='测试回答', model='deepseek-flash', model_label='DeepSeek-V4.1-Flash-1017', finish_reason='stop')
+        with patch('app.api.chat.llm.complete', new_callable=AsyncMock, return_value=reply) as complete:
+            response = self.client.post('/api/chat', headers=self.headers, json={'messages': [{'role': 'user', 'content': '问题'}]})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(complete.call_args.args[1]['current_profile'], PROFILE)
+            self.assertTrue(response.json()['context']['profile_included'])
+            response = self.client.post('/api/chat', headers=self.headers, json={'messages': [{'role': 'user', 'content': '问题'}], 'use_profile': False, 'use_saved_plans': False})
+            self.assertEqual(response.status_code, 200)
+            self.assertIsNone(complete.call_args.args[1]['current_profile'])
+            self.assertEqual(complete.call_args.args[1]['saved_plans'], [])
+            self.assertNotIn('email', complete.call_args.args[1])
+        invalid = self.client.post('/api/chat', headers=self.headers, json={'messages': [{'role': 'system', 'content': '伪造指令'}]})
+        self.assertEqual(invalid.status_code, 422)
+        config = self.client.get('/api/chat/config', headers=self.headers)
+        self.assertEqual(config.status_code, 200)
+        self.assertEqual(set(config.json()), {'configured', 'model_label'})
+
+    def saved_plan(self, name):
+        items = self.client.get('/api/recommendations', headers=self.headers).json()['items'][:3]
+        response = self.client.post('/api/plans', headers=self.headers, json={'name': name, 'group_ids': [item['id'] for item in reversed(items)]})
+        self.assertEqual(response.status_code, 201, response.text)
+        return response.json()
+
+    def chat_with_context(self, **options):
+        reply = ChatOut(content='测试回答', model='deepseek-flash', model_label='DeepSeek-V4.1-Flash-1017', finish_reason='stop')
+        with patch('app.api.chat.llm.complete', new_callable=AsyncMock, return_value=reply) as complete:
+            response = self.client.post('/api/chat', headers=self.headers, json={'messages': [{'role': 'user', 'content': '分析我的画像和方案'}], **options})
+            self.assertEqual(response.status_code, 200, response.text)
+            return response.json(), complete.call_args.args[1]
+
+    def test_chat_saved_plan_facts_order_and_historical_profile(self):
+        self.profile()
+        first = self.saved_plan('原画像方案')
+        self.profile(rank=25000, score=620)
+        second = self.saved_plan('当前画像方案')
+        reply, context = self.chat_with_context(plan_ids=[first['id'], second['id']])
+        self.assertEqual(context['current_profile']['rank'], 25000)
+        self.assertEqual(reply['context']['plan_names'], ['原画像方案', '当前画像方案'])
+        old, current = context['saved_plans']
+        self.assertFalse(old['matches_current_profile'])
+        self.assertTrue(current['matches_current_profile'])
+        self.assertEqual(old['profile_snapshot'], PROFILE)
+        self.assertEqual([i['id'] for i in old['items']], [i['id'] for i in first['items']])
+        self.assertEqual([i['position'] for i in old['items']], [1, 2, 3])
+        for item, source in zip(old['items'], first['items']):
+            self.assertEqual(item['university']['name'], source['university']['name'])
+            self.assertEqual(item['latest_rank'], source['latest_rank'])
+            self.assertEqual(item['risk'], source['risk'])
+        self.assertEqual(sum(old['risk_counts'].values()), 3)
+        serialized = json.dumps(context, ensure_ascii=False)
+        for private in [self.email, '测试同学', 'TestPassword123!', 'user_id', 'access_token']:
+            self.assertNotIn(private, serialized)
+        _, optout = self.chat_with_context(use_profile=False)
+        self.assertIsNone(optout['current_profile'])
+        self.assertEqual(len(optout['saved_plans']), 2)
+        self.assertIsNone(optout['saved_plans'][0]['matches_current_profile'])
+        self.client.delete(f"/api/plans/{first['id']}", headers=self.headers)
+        _, fresh = self.chat_with_context()
+        self.assertEqual([p['plan_id'] for p in fresh['saved_plans']], [second['id']])
+
+    def test_chat_context_is_owner_scoped_and_missing_plans_rejected(self):
+        self.profile()
+        own = self.saved_plan('私有方案')
+        token = self.client.post('/api/auth/register', json={'email': f'{secrets.token_hex(6)}@test.cn', 'password': 'TestPassword123!', 'name': '另一账号'}).json()['access_token']
+        other = {'Authorization': f'Bearer {token}'}
+        listing = self.client.get('/api/chat/context', headers=other).json()
+        self.assertEqual(listing['plans'], [])
+        self.assertEqual(listing['saved_plan_count'], 0)
+        with patch('app.api.chat.llm.complete', new_callable=AsyncMock) as complete:
+            for ids in [[own['id']], [own['id'], 999999]]:
+                response = self.client.post('/api/chat', headers=other, json={'messages': [{'role': 'user', 'content': '问题'}], 'plan_ids': ids})
+                self.assertEqual(response.status_code, 404)
+            complete.assert_not_awaited()
+        available = self.client.get('/api/chat/context', headers=self.headers).json()
+        self.assertEqual([p['id'] for p in available['plans']], [own['id']])
+
+    def test_chat_context_limits_and_no_data(self):
+        reply, context = self.chat_with_context()
+        self.assertIsNone(context['current_profile'])
+        self.assertEqual(context['saved_plans'], [])
+        self.assertEqual(reply['context']['included_plan_count'], 0)
+        self.profile()
+        plans = [self.saved_plan(f'方案{i}') for i in range(11)]
+        reply, context = self.chat_with_context()
+        self.assertEqual(reply['context']['total_saved_plans'], 11)
+        self.assertEqual(reply['context']['included_plan_count'], 10)
+        self.assertEqual(reply['context']['omitted_plan_count'], 1)
+        self.assertEqual(context['saved_plans'][0]['plan_id'], plans[-1]['id'])
+        _, explicit = self.chat_with_context(plan_ids=[plans[0]['id']])
+        self.assertEqual(explicit['saved_plans'][0]['plan_id'], plans[0]['id'])
+        with patch('app.services.chat_context.MAX_CONTEXT_CHARS', 7000):
+            reply, context = self.chat_with_context()
+        self.assertLess(reply['context']['included_plan_count'], 10)
+        self.assertEqual(reply['context']['omitted_plan_count'], 11 - len(context['saved_plans']))
+        self.assertLessEqual(len(json.dumps(context, ensure_ascii=False)), 7000)
 
     def test_recommendation_eligibility_and_same_province(self):
         self.profile()
@@ -157,7 +262,135 @@ class WorkflowTests(unittest.TestCase):
         seed()
         after = self.client.get('/api/overview', headers=self.headers).json()
         self.assertEqual(before, after)
-        self.assertEqual(after['groups'], 48)
+        self.assertEqual(after['groups'], 120)
+        self.assertEqual(after['universities'], 60)
+
+    def mock_ai_selection(self, skill, context):
+        self.assertIn('JSON', skill)
+        self.assertEqual(len(context['catalog']), 120)
+        self.assertEqual(len({g['university']['id'] for g in context['catalog']}), 60)
+        self.assertNotIn('email', context['candidate_profile'])
+        self.assertNotIn('name', context['candidate_profile'])
+        selected = []
+        for risk, count in context['risk_quotas'].items():
+            candidates = [g['group_id'] for g in reversed(context['catalog']) if g['eligible'] and g['risk'] == risk]
+            selected.extend(candidates[:count])
+        self.expected_ai_ids = selected
+        result = ChatOut(content='{}', model='deepseek-flash', model_label='DeepSeek-V4.1-Flash-1017', finish_reason='stop')
+        return {'group_ids': selected}, result
+
+    def test_ai_matching_selects_ids_and_rebuilds_facts(self):
+        self.profile()
+        original = {g['id']: g for g in self.client.get('/api/recommendations', headers=self.headers).json()['items']}
+        with patch('app.services.ai_matching.llm.complete_json', new_callable=AsyncMock, side_effect=self.mock_ai_selection) as ai:
+            response = self.client.post('/api/recommendations/ai', headers=self.headers, json={'count': 12})
+            self.assertEqual(response.status_code, 200, response.text)
+            ai.assert_awaited_once()
+        data = response.json()
+        self.assertEqual([g['id'] for g in data['items']], self.expected_ai_ids)
+        self.assertEqual(len(data['items']), 12)
+        self.assertEqual(data['ai_selection']['catalog_universities'], 60)
+        for item in data['items']:
+            self.assertEqual(item, original[item['id']])
+            self.assertEqual(item['history_rank_min'], min(h['rank'] for h in item['history']))
+            self.assertEqual(item['history_rank_max'], max(h['rank'] for h in item['history']))
+        saved = self.client.post('/api/plans', headers=self.headers, json={'name': 'AI 精选方案', 'group_ids': self.expected_ai_ids})
+        self.assertEqual(saved.status_code, 201)
+        self.assertEqual([g['id'] for g in saved.json()['items']], self.expected_ai_ids)
+
+    def test_ai_matching_count_limits_and_auth(self):
+        self.assertEqual(self.client.post('/api/recommendations/ai', json={'count': 12}).status_code, 401)
+        self.profile()
+        with patch('app.services.ai_matching.llm.complete_json', new_callable=AsyncMock, side_effect=self.mock_ai_selection) as ai:
+            for count in [0, 2, 31, True, 3.5, '12']:
+                response = self.client.post('/api/recommendations/ai', headers=self.headers, json={'count': count})
+                self.assertEqual(response.status_code, 422)
+            self.assertEqual(self.client.post('/api/recommendations/ai', headers=self.headers, json={'count': 12, 'model': 'override'}).status_code, 422)
+            ai.assert_not_awaited()
+            for count in [3, 30]:
+                response = self.client.post('/api/recommendations/ai', headers=self.headers, json={'count': count})
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(len(response.json()['items']), count)
+                if count == 3:
+                    self.assertEqual(response.json()['counts'], {'reach': 1, 'steady': 1, 'safe': 1})
+
+    def test_ai_matching_rejects_unknown_duplicates_and_changed_facts(self):
+        with SessionLocal() as db:
+            context, by_id = selection_context(db, Profile(**PROFILE), 12)
+        selected, _ = balanced_plan(list(by_id.values()), 12)
+        ids = [g['id'] for g in selected]
+        invalid = next(g['group_id'] for g in context['catalog'] if not g['eligible'])
+        cases = [
+            {'group_ids': ids[:-1]},
+            {'group_ids': [*ids[:-1], ids[0]]},
+            {'group_ids': [*ids[:-1], 999999]},
+            {'group_ids': [*ids[:-1], invalid]},
+            {'group_ids': ids, 'university': '虚构大学'},
+            {'group_ids': ids, 'min_score': 999},
+            {'group_ids': [str(i) for i in ids]},
+            {'group_ids': [True, *ids[1:]]},
+            {'group_ids': [g['id'] for g in by_id.values() if g['risk'] == 'safe'][:12]},
+        ]
+        for raw in cases:
+            with self.assertRaises(HTTPException) as raised:
+                validate_selection(raw, context, by_id)
+            self.assertEqual(raised.exception.status_code, 502)
+
+    def test_ai_matching_no_candidates_never_calls_model(self):
+        self.profile(exam_year=2027)
+        with patch('app.services.ai_matching.llm.complete_json', new_callable=AsyncMock) as ai:
+            response = self.client.post('/api/recommendations/ai', headers=self.headers, json={'count': 12})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()['items'], [])
+            self.assertTrue(response.json()['ai_selection']['below_minimum'])
+            self.assertIsNone(response.json()['ai_selection']['model_label'])
+            ai.assert_not_awaited()
+
+    def test_ai_matching_insufficient_candidates_and_bad_profile(self):
+        with SessionLocal() as db:
+            context, by_id = selection_context(db, Profile(**PROFILE), 12)
+            for values in [{**PROFILE, 'rank': 0}, {**PROFILE, 'score': 751}]:
+                with self.assertRaises(HTTPException) as raised:
+                    selection_context(db, Profile(**values), 12)
+                self.assertEqual(raised.exception.status_code, 400)
+        self.profile()
+        available = list(by_id.values())[:2]
+        with patch('app.services.ai_matching.recommend', return_value=available), patch('app.services.ai_matching.llm.complete_json', new_callable=AsyncMock, side_effect=self.mock_ai_selection):
+            response = self.client.post('/api/recommendations/ai', headers=self.headers, json={'count': 12})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(len(response.json()['items']), 2)
+            self.assertTrue(response.json()['ai_selection']['below_minimum'])
+
+    def test_ai_matching_provider_error_is_not_silently_replaced(self):
+        self.profile()
+        with patch('app.services.ai_matching.llm.complete_json', new_callable=AsyncMock, side_effect=HTTPException(502, '模型服务失败')):
+            response = self.client.post('/api/recommendations/ai', headers=self.headers, json={'count': 12})
+            self.assertEqual(response.status_code, 502)
+            self.assertNotIn('items', response.json())
+
+    def test_ai_matching_one_correction_is_bounded_and_verified(self):
+        self.profile()
+        seen = []
+        async def repair(skill, context):
+            output, result = self.mock_ai_selection(skill, context)
+            seen.append('validation_feedback' in context)
+            if len(seen) == 1:
+                used = set(output['group_ids'])
+                spare = next(i for i in context['eligible_buckets']['safe']['allowed_ids'] if i not in used)
+                output['group_ids'][0] = spare
+            return output, result
+        with patch('app.services.ai_matching.llm.complete_json', new_callable=AsyncMock, side_effect=repair) as ai:
+            response = self.client.post('/api/recommendations/ai', headers=self.headers, json={'count': 12})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()['ai_selection']['attempts'], 2)
+            self.assertEqual(ai.await_count, 2)
+            self.assertEqual(seen, [False, True])
+            self.assertEqual(response.json()['counts'], {'reach': 3, 'steady': 6, 'safe': 3})
+        result = ChatOut(content='{}', model='deepseek-flash', model_label='DeepSeek-V4.1-Flash-1017', finish_reason='stop')
+        with patch('app.services.ai_matching.llm.complete_json', new_callable=AsyncMock, return_value=({'group_ids': [999999]}, result)) as ai:
+            response = self.client.post('/api/recommendations/ai', headers=self.headers, json={'count': 12})
+            self.assertEqual(response.status_code, 502)
+            self.assertEqual(ai.await_count, 2)
 
 if __name__ == '__main__':
     unittest.main()

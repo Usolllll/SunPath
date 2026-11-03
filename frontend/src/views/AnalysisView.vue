@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onBeforeUnmount, ref } from "vue";
+import axios from "axios";
 import {
   ArrowRight,
   Sparkles,
   SlidersHorizontal,
   Check,
   Info,
-  RefreshCw,
 } from "lucide-vue-next";
 import { ElMessage } from "element-plus/es/components/message/index";
 import { ElMessageBox } from "element-plus/es/components/message-box/index";
@@ -22,6 +22,16 @@ const auth = useAuth();
 const planner = usePlanner();
 const router = useRouter();
 const busy = ref(false);
+const aiBusy = ref(false);
+const aiFailed = ref(false);
+const matchCount = ref(12);
+const validCount = computed(
+  () =>
+    Number.isInteger(matchCount.value) &&
+    matchCount.value >= 3 &&
+    matchCount.value <= 30,
+);
+let controller: AbortController | undefined;
 const generating = ref(false);
 const failed = ref(false);
 const tab = ref("all");
@@ -48,9 +58,10 @@ const regions = computed(() => [
   ...new Set(data.value.items.map((g) => g.university.region)),
 ]);
 async function load() {
-  if (!auth.user?.profile) return;
+  if (!auth.user?.profile || aiBusy.value) return;
   busy.value = true;
   failed.value = false;
+  aiFailed.value = false;
   try {
     data.value = (await api.recommendations()).data;
   } catch {
@@ -59,7 +70,43 @@ async function load() {
     busy.value = false;
   }
 }
+async function runAi() {
+  if (aiBusy.value || busy.value || !auth.user?.profile) return;
+  if (
+    !Number.isInteger(matchCount.value) ||
+    matchCount.value < 3 ||
+    matchCount.value > 30
+  )
+    return ElMessage.warning("请选择 3–30 个专业组");
+  aiBusy.value = true;
+  failed.value = false;
+  aiFailed.value = false;
+  controller = new AbortController();
+  try {
+    data.value = (await api.aiMatch(matchCount.value, controller.signal)).data;
+    if (data.value.ai_selection?.below_minimum)
+      ElMessage.warning(data.value.ai_selection.message);
+    else ElMessage.success("AI 精选完成，全部结果已通过数据库与规则校验");
+  } catch (error) {
+    if (!axios.isCancel(error)) {
+      failed.value = true;
+      aiFailed.value = true;
+    }
+  } finally {
+    aiBusy.value = false;
+    controller = undefined;
+  }
+}
 async function generate() {
+  if (busy.value || aiBusy.value || generating.value || failed.value) return;
+  if (!data.value.ai_selection)
+    return ElMessage.warning("请先完成 AI 匹配，再生成志愿方案");
+  if (!validCount.value) return ElMessage.warning("请选择 3–30 个专业组");
+  if (
+    data.value.ai_selection &&
+    data.value.ai_selection.requested_count !== matchCount.value
+  )
+    return ElMessage.warning("推荐数量已调整，请重新 AI 匹配");
   if (planner.items.length) {
     try {
       await ElMessageBox.confirm(
@@ -73,12 +120,15 @@ async function generate() {
   }
   generating.value = true;
   try {
-    const response = (await api.generate()).data;
+    const response = {
+      items: data.value.items,
+      missing_tiers: data.value.ai_selection.missing_tiers,
+    };
     if (!response.items.length)
       return ElMessage.warning(
         "当前画像暂无可用候选，请调整画像或浏览招生数据",
       );
-    planner.replace(response.items);
+    planner.replace([...response.items]);
     if (response.missing_tiers.length)
       ElMessage.warning(
         `当前样本缺少${response.missing_tiers.map((r) => riskLabels[r as keyof typeof riskLabels]).join("、")}梯度，请审慎调整`,
@@ -96,6 +146,7 @@ function show(group: Group) {
   drawer.value = true;
 }
 onMounted(load);
+onBeforeUnmount(() => controller?.abort());
 </script>
 <template>
   <div class="page-heading">
@@ -109,9 +160,19 @@ onMounted(load);
       type="primary"
       size="large"
       :loading="generating"
-      :disabled="!data.items.length"
+      :disabled="
+        !data.items.length ||
+        !data.ai_selection ||
+        busy ||
+        aiBusy ||
+        failed ||
+        !validCount ||
+        !!(
+          data.ai_selection && data.ai_selection.requested_count !== matchCount
+        )
+      "
       @click="generate"
-      ><Sparkles :size="17" />一键生成志愿方案</el-button
+      ><Sparkles :size="17" />生成志愿方案</el-button
     >
   </div>
   <template v-if="auth.user?.profile"
@@ -135,20 +196,82 @@ onMounted(load);
         ><SlidersHorizontal :size="15" />调整画像</RouterLink
       >
     </section>
+    <section class="panel ai-match-controls">
+      <div>
+        <h3>
+          <Sparkles :size="17" />AI 院校精选
+          <span class="tag warm">数据库约束</span>
+        </h3>
+        <p>
+          将考生画像与已收录院校资料交给 DeepSeek，按偏好挑选；后端校验
+          ID、选科、位次、人数和梯度。
+        </p>
+        <small
+          >录取与计划为模拟样本；AI
+          不会添加库外院校，也不能修改录取数据。</small
+        >
+      </div>
+      <div class="ai-match-actions">
+        <label
+          >推荐数量<el-input-number
+            v-model="matchCount"
+            :min="3"
+            :max="30"
+            :step="1"
+            controls-position="right"
+            :disabled="aiBusy"
+            aria-label="AI 推荐专业组数量" /></label
+        ><el-button
+          type="primary"
+          :loading="aiBusy"
+          :disabled="busy"
+          @click="runAi"
+          ><Sparkles :size="15" />{{
+            data.ai_selection ? "重新 AI 匹配" : "开始 AI 匹配"
+          }}</el-button
+        >
+      </div>
+    </section>
+    <div
+      v-if="
+        data.ai_selection && data.ai_selection.requested_count !== matchCount
+      "
+      class="notice compact"
+    >
+      推荐数量已调整，请重新 AI 匹配后再生成方案。
+    </div>
+    <div
+      v-if="data.ai_selection && !failed"
+      class="notice compact ai-match-result"
+      role="status"
+    >
+      <strong>{{
+        data.ai_selection.model_label
+          ? "AI 精选 · " + data.ai_selection.model_label
+          : "约束检查完成 · 未调用模型"
+      }}</strong>
+      <p>{{ data.ai_selection.message }}</p>
+      <p>
+        数据库 {{ data.ai_selection.catalog_universities }} 所高校 /
+        {{ data.ai_selection.catalog_groups }} 个专业组 → 符合条件
+        {{ data.ai_selection.eligible_count }} 个 → 精选
+        {{ data.items.length }} 个专业组，覆盖
+        {{ data.ai_selection.selected_universities }} 所高校。
+      </p>
+      <button class="text-button" :disabled="aiBusy" @click="load">
+        返回候选列表
+      </button>
+    </div>
     <div class="rule-strip">
       <Check :size="14" />同省位次匹配<Check :size="14" />选科要求校验<Check
         :size="14"
-      />招生计划校验<Check :size="14" />兴趣偏好排序<button
-        class="text-button"
-        @click="load"
-      >
-        <RefreshCw :size="14" />重新分析
-      </button>
+      />招生计划校验<Check :size="14" />兴趣偏好排序
     </div>
     <div class="analysis-filters">
       <div class="risk-tabs">
         <button :class="{ active: tab === 'all' }" @click="tab = 'all'">
-          全部匹配 <span>{{ data.items.length }}</span></button
+          {{ data.ai_selection ? "AI 精选" : "可选专业组" }}
+          <span>{{ data.items.length }}</span></button
         ><button
           v-for="(label, risk) in riskLabels"
           :key="risk"
@@ -174,10 +297,23 @@ onMounted(load);
       0.80；稳妥 ≤ 1.08；冲刺 ≤ 1.35。超过 1.35
       的专业组不推荐，分级不代表录取概率。
     </div>
-    <div v-loading="busy" class="analysis-results">
+    <div
+      v-loading="busy || aiBusy"
+      class="analysis-results"
+      element-loading-text="正在根据已收录院校资料进行匹配…"
+    >
       <div v-if="failed" class="empty-state">
-        <p>匹配失败，请重试</p>
-        <el-button @click="load">重新分析</el-button>
+        <p>
+          {{
+            aiFailed
+              ? "AI 本次匹配未完成，请重试或返回候选列表。"
+              : "匹配失败，请重试"
+          }}
+        </p>
+        <el-button @click="aiFailed ? runAi() : load()">{{
+          aiFailed ? "重试 AI 匹配" : "重新分析"
+        }}</el-button
+        ><el-button v-if="aiFailed" @click="load">返回候选列表</el-button>
       </div>
       <div v-else-if="filtered.length" class="school-grid">
         <SchoolCard
@@ -207,3 +343,81 @@ onMounted(load);
   </div>
   <GroupDrawer v-model="drawer" :group="detail" />
 </template>
+<style scoped>
+.ai-match-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 22px;
+  margin-top: 18px;
+}
+.ai-match-controls h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.ai-match-controls h3 > svg {
+  color: #b99768;
+}
+.ai-match-controls p {
+  color: #8f9eb3;
+  font-size: 11px;
+  margin-top: 7px;
+}
+.ai-match-controls small {
+  display: block;
+  color: #a6afbd;
+  font-size: 9px;
+  margin-top: 5px;
+}
+.ai-match-actions {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+.ai-match-actions label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 10px;
+  color: #8c9db4;
+}
+.ai-match-actions .el-input-number {
+  width: 95px;
+}
+.ai-match-actions .el-button {
+  height: 38px;
+}
+.ai-match-result {
+  margin-top: 15px;
+}
+.ai-match-result .text-button {
+  margin-top: 7px;
+  font-size: 10px;
+}
+@media (max-width: 1250px) {
+  .ai-match-controls {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .ai-match-actions {
+    margin-left: auto;
+  }
+}
+@media (max-width: 760px) {
+  .ai-match-controls {
+    padding: 18px;
+    gap: 15px;
+  }
+  .ai-match-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+  .ai-match-actions .el-button {
+    flex: 1;
+  }
+}
+</style>

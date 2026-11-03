@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.database import engine
-from app.api import auth, data, plans
+from app.api import auth, data, plans, chat
 
 @asynccontextmanager
 async def lifespan(app):
@@ -15,6 +15,7 @@ app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins, al
 app.include_router(auth.router, prefix='/api')
 app.include_router(data.router, prefix='/api')
 app.include_router(plans.router, prefix='/api')
+app.include_router(chat.router, prefix='/api')
 
 @app.get('/api/health', tags=['运行状态'])
 def health():

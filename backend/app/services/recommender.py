@@ -1,15 +1,17 @@
-"""Deterministic, explainable MVP engine. Replace this service to integrate an AI provider later."""
+"""Authoritative eligibility/risk checks; AI selection cannot bypass these rules."""
 from app.services.catalog import load_groups, serialize_group
 
 ENGINE_VERSION = 'rank-rules-v1'
 
-def recommend(db, profile):
+def recommend(db, profile, groups=None):
     results = []
-    for group in load_groups(db):
+    for group in (load_groups(db) if groups is None else groups):
         if not set(group.required_subjects).issubset(set(profile.subjects)):
             continue
         item = serialize_group(group, profile.province, profile.exam_year)
         if not item['history'] or item['seats'] <= 0:
+            continue
+        if any(not (1 <= h['rank'] <= 2_000_000 and 0 <= h['score'] <= 750) for h in item['history']):
             continue
         ranks = [h['rank'] for h in item['history']]
         weights = list(range(1, len(ranks) + 1))
@@ -29,7 +31,7 @@ def recommend(db, profile):
         warnings = ['模拟数据估算，不代表录取概率', '冲刺梯度，建议搭配稳妥与保底志愿' if risk == 'reach' else '录取位次可能随招生计划和报考热度变化']
         if volatility > 12:
             warnings.append(f'历史位次波动 {volatility}%，需重点关注')
-        item.update(risk=risk, baseline_rank=baseline, rank_ratio=round(ratio, 4), volatility=volatility, reasons=reasons, warnings=warnings,
+        item.update(risk=risk, baseline_rank=baseline, history_rank_min=min(ranks), history_rank_max=max(ranks), rank_ratio=round(ratio, 4), volatility=volatility, reasons=reasons, warnings=warnings,
                     preference_matches=int(region_match) + int(major_match))
         results.append(item)
     # Preference matches first; within ties choose nearest rank reference. Never treat the score as a probability.
@@ -38,7 +40,9 @@ def recommend(db, profile):
 
 def balanced_plan(items, count=12):
     buckets = {risk: [x for x in items if x['risk'] == risk] for risk in ['reach', 'steady', 'safe']}
-    quotas = {'reach': count // 4, 'steady': count // 2, 'safe': count - count // 4 - count // 2}
+    reach = max(1, count // 4)
+    steady = max(1, count // 2)
+    quotas = {'reach': reach, 'steady': steady, 'safe': max(0, count - reach - steady)}
     selected = [x for risk, bucket in buckets.items() for x in bucket[:quotas[risk]]]
     selected_ids = {x['id'] for x in selected}
     selected += [x for x in items if x['id'] not in selected_ids][:max(0, count - len(selected))]

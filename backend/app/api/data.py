@@ -7,12 +7,15 @@ from app.models.entities import User, University, Plan
 from app.schemas.dto import PROVINCES, SUBJECTS
 from app.services.catalog import load_groups, serialize_group, DISCLAIMER, require_profile
 from app.services.recommender import recommend, balanced_plan, ENGINE_VERSION
+from app.schemas.matching import AIMatchIn
+from app.services.ai_matching import match_universities
 
 router = APIRouter(tags=['招生数据与智能分析'], dependencies=[Depends(current_user)])
 
 @router.get('/meta')
-def meta():
-    return {'provinces': PROVINCES, 'subjects': SUBJECTS, 'data_year': 2026, 'history_years': [2023, 2024, 2025], 'disclaimer': DISCLAIMER, 'engine_version': ENGINE_VERSION}
+def meta(db: Session = Depends(get_db)):
+    regions = db.scalars(select(University.region).distinct().order_by(University.region)).all()
+    return {'provinces': PROVINCES, 'subjects': SUBJECTS, 'regions': list(regions), 'data_year': 2026, 'history_years': [2023, 2024, 2025], 'disclaimer': DISCLAIMER, 'engine_version': ENGINE_VERSION}
 
 @router.get('/catalog')
 def catalog(q: str = Query('', max_length=80), region: str = '', level: str = '', subject: str = '', province: str = '浙江', year: int = Query(2026, ge=2024, le=2030), page: int = Query(1, ge=1), page_size: int = Query(12, ge=1, le=100), db: Session = Depends(get_db)):
@@ -49,6 +52,10 @@ def recommendations(user: User = Depends(current_user), db: Session = Depends(ge
 def generate(count: int = Query(12, ge=3, le=30), user: User = Depends(current_user), db: Session = Depends(get_db)):
     selected, missing = balanced_plan(recommend(db, require_profile(user)), count)
     return {'items': selected, 'missing_tiers': missing, 'message': '已按 1:2:1 优先分配冲稳保梯度；不足部分由可用候选补齐。', 'disclaimer': DISCLAIMER}
+
+@router.post('/recommendations/ai')
+async def ai_recommendations(body: AIMatchIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return await match_universities(db, require_profile(user), body.count)
 
 @router.get('/overview')
 def overview(user: User = Depends(current_user), db: Session = Depends(get_db)):

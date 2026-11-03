@@ -13,9 +13,15 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (axios.isCancel(error)) return Promise.reject(error);
     const detail = error.response?.data?.detail;
-    const message =
-      typeof detail === "string"
+    const missingAiRoute =
+      error.response?.status === 404 &&
+      (error.config.url?.includes("/recommendations/ai") ||
+        error.config.url?.startsWith("/chat"));
+    const message = missingAiRoute
+      ? "当前后端尚未加载最新 AI 接口，请关闭原启动窗口并重新运行 start.bat"
+      : typeof detail === "string"
         ? detail
         : Array.isArray(detail)
           ? detail

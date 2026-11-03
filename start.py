@@ -191,7 +191,7 @@ def main():
             job = WindowsJob()
         print('\nSunPath - starting existing backend and frontend (no install/build/seed).', flush=True)
         commands = [
-            ('Backend', [str(python), '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000'], ROOT / 'backend'),
+            ('Backend', [str(python), '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000', '--reload', '--reload-dir', str(ROOT / 'backend' / 'app')], ROOT / 'backend'),
             ('Frontend', [node, str(vite), '--host', '127.0.0.1', '--port', '5173', '--strictPort'], ROOT / 'frontend'),
         ]
         for name, command, cwd in commands:

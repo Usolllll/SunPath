@@ -6,8 +6,28 @@ import type {
   Recommendation,
   Catalog,
   Group,
+  ChatMessage,
+  ChatReply,
+  ChatAvailableContext,
 } from "./types";
 export const api = {
+  chatConfig: () =>
+    http.get<{ configured: boolean; model_label: string }>("/chat/config"),
+  chatContext: () => http.get<ChatAvailableContext>("/chat/context"),
+  chat: (
+    messages: ChatMessage[],
+    options: {
+      use_profile: boolean;
+      use_saved_plans: boolean;
+      plan_ids: number[] | null;
+    },
+    signal: AbortSignal,
+  ) =>
+    http.post<ChatReply>(
+      "/chat",
+      { messages, ...options },
+      { timeout: 135000, signal },
+    ),
   login: (data: { email: string; password: string }) =>
     http.post<{ access_token: string; user: User }>("/auth/login", data),
   register: (data: { email: string; password: string; name: string }) =>
@@ -19,9 +39,18 @@ export const api = {
   password: (data: { current_password: string; new_password: string }) =>
     http.put("/auth/password", data),
   recommendations: () => http.get<Recommendation>("/recommendations"),
-  generate: () =>
+  aiMatch: (count: number, signal: AbortSignal) =>
+    http.post<Recommendation>(
+      "/recommendations/ai",
+      { count },
+      { timeout: 135000, signal },
+    ),
+  meta: () => http.get<{ regions: string[] }>("/meta"),
+  generate: (count = 12) =>
     http.post<{ items: Group[]; missing_tiers: string[]; message: string }>(
       "/recommendations/generate",
+      null,
+      { params: { count } },
     ),
   catalog: (params: Record<string, unknown>) =>
     http.get<Catalog>("/catalog", { params }),

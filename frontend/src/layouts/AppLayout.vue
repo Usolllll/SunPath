@@ -92,7 +92,7 @@ function command(value: string) {
             item.label
           }}</span
           ><span v-if="item.path === '/analysis'" class="nav-new">AI</span
-          ><span v-if="item.path === '/ai-chat'" class="nav-new">预览</span
+          ><span v-if="item.path === '/ai-chat'" class="nav-new">AI</span
           ><span
             v-if="item.path === '/planner' && planner.items.length"
             class="nav-count"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, onMounted } from "vue";
 import {
   ArrowRight,
   Save,
@@ -28,6 +28,22 @@ const form = reactive<Profile>(
       },
 );
 const subjects = ["物理", "化学", "生物", "历史", "政治", "地理"];
+const targetRegions = ref([
+  "浙江",
+  "上海",
+  "江苏",
+  "安徽",
+  "湖北",
+  "四川",
+  "广东",
+]);
+onMounted(async () => {
+  try {
+    targetRegions.value = (await api.meta()).data.regions;
+  } catch {
+    /* API handles error */
+  }
+});
 const complete = computed(() => form.subjects.length === 3 && form.rank > 0);
 async function save() {
   if (!complete.value)
@@ -114,17 +130,10 @@ async function save() {
         v-model="form.regions"
         multiple
         filterable
+        :multiple-limit="10"
         placeholder="选择你想去的地方"
         ><el-option
-          v-for="region in [
-            '浙江',
-            '上海',
-            '江苏',
-            '安徽',
-            '湖北',
-            '四川',
-            '广东',
-          ]"
+          v-for="region in targetRegions"
           :key="region"
           :label="region"
           :value="region" /></el-select
