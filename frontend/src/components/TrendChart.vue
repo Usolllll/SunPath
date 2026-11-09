@@ -92,9 +92,15 @@ function render() {
 }
 onMounted(() => {
   if (!container.value) return;
-  chart = echarts.init(container.value);
-  render();
-  observer = new ResizeObserver(() => chart?.resize());
+  const resize = () => {
+    if (!container.value?.clientWidth || !container.value?.clientHeight) return;
+    if (!chart) {
+      chart = echarts.init(container.value);
+      render();
+    } else chart.resize();
+  };
+  resize();
+  observer = new ResizeObserver(resize);
   observer.observe(container.value);
 });
 watch(() => [props.groups, props.studentRank], render, { deep: true });

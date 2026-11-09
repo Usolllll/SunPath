@@ -9,6 +9,7 @@ from app.services.catalog import load_groups, serialize_group, DISCLAIMER, requi
 from app.services.recommender import recommend, balanced_plan, ENGINE_VERSION
 from app.schemas.matching import AIMatchIn
 from app.services.ai_matching import match_universities
+from app.services.geography import university_locations
 
 router = APIRouter(tags=['招生数据与智能分析'], dependencies=[Depends(current_user)])
 
@@ -31,7 +32,7 @@ def catalog(q: str = Query('', max_length=80), region: str = '', level: str = ''
             continue
         items.append(serialize_group(group, province, year))
     regions = sorted(set(g.university.region for g in groups))
-    return {'items': items[(page - 1) * page_size:page * page_size], 'total': len(items), 'regions': regions, 'disclaimer': DISCLAIMER}
+    return {'items': items[(page - 1) * page_size:page * page_size], 'total': len(items), 'universities': university_locations(items), 'regions': regions, 'disclaimer': DISCLAIMER}
 
 @router.get('/catalog/{group_id}')
 def detail(group_id: int, province: str = '浙江', year: int = Query(2026, ge=2024, le=2030), db: Session = Depends(get_db)):

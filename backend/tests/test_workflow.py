@@ -265,6 +265,34 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(after['groups'], 120)
         self.assertEqual(after['universities'], 60)
 
+    def test_catalog_map_covers_all_filtered_schools_without_pagination_loss(self):
+        self.assertEqual(self.client.get('/api/catalog').status_code, 401)
+        first = self.client.get('/api/catalog', headers=self.headers, params={'page_size': 2}).json()
+        self.assertEqual(len(first['items']), 2)
+        self.assertEqual(len(first['universities']), 60)
+        self.assertEqual(sum(s['group_count'] for s in first['universities']), first['total'])
+        self.assertEqual(len({s['id'] for s in first['universities']}), 60)
+        for school in first['universities']:
+            location = school['location']
+            self.assertTrue(18 < location['latitude'] < 54)
+            self.assertTrue(73 < location['longitude'] < 136)
+            self.assertTrue(location['source_url'].startswith('https://www.wikidata.org/'))
+            self.assertEqual(school['group_count'], len(school['group_ids']))
+        donghua = next(s for s in first['universities'] if s['name'] == '东华大学')
+        self.assertTrue(30 < donghua['location']['latitude'] < 32)
+        self.assertIn('Q837544', donghua['location']['source_url'])
+        self.assertEqual(sum(s['location']['precision'] == 'city' for s in first['universities']), 2)
+        filtered = self.client.get('/api/catalog', headers=self.headers, params={'q': '计算机', 'region': '浙江', 'subject': '物理', 'page_size': 1}).json()
+        self.assertTrue(filtered['universities'])
+        self.assertTrue(all(s['region'] == '浙江' for s in filtered['universities']))
+        self.assertEqual(sum(s['group_count'] for s in filtered['universities']), filtered['total'])
+        missing = self.client.get('/api/catalog', headers=self.headers, params={'q': '没有这所大学'}).json()
+        self.assertEqual(missing['universities'], [])
+        from app.services.geography import university_locations
+        original = first['items'][0]
+        unknown = {**original, 'university': {**original['university'], 'name': '新增待定位学校'}}
+        self.assertIsNone(university_locations([unknown])[0]['location'])
+
     def mock_ai_selection(self, skill, context):
         self.assertIn('JSON', skill)
         self.assertEqual(len(context['catalog']), 120)

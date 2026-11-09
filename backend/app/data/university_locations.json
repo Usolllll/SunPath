@@ -1,0 +1,422 @@
+{
+  "东南大学": {
+    "latitude": 32.054169,
+    "longitude": 118.795212,
+    "source_url": "https://www.wikidata.org/entity/Q3551770",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "浙江工业大学": {
+    "latitude": 30.22577778,
+    "longitude": 120.03916667,
+    "source_url": "https://www.wikidata.org/entity/Q986087",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "上海交通大学": {
+    "latitude": 31.025393,
+    "longitude": 121.436348,
+    "source_url": "https://www.wikidata.org/entity/Q525169",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "华东理工大学": {
+    "latitude": 31.143055555,
+    "longitude": 121.425,
+    "source_url": "https://www.wikidata.org/entity/Q2655352",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "南京理工大学": {
+    "latitude": 32.0333,
+    "longitude": 118.851922222,
+    "source_url": "https://www.wikidata.org/entity/Q3953805",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "南京邮电大学": {
+    "latitude": 32.0805,
+    "longitude": 118.765,
+    "source_url": "https://www.wikidata.org/entity/Q6963688",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "合肥工业大学": {
+    "latitude": 31.8486,
+    "longitude": 117.2901,
+    "source_url": "https://www.wikidata.org/entity/Q5698213",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "苏州大学": {
+    "latitude": 31.31083333,
+    "longitude": 120.63555556,
+    "source_url": "https://www.wikidata.org/entity/Q1639978",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "南京大学": {
+    "latitude": 32.05611,
+    "longitude": 118.775,
+    "source_url": "https://www.wikidata.org/entity/Q683580",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "浙江大学": {
+    "latitude": 30.263611111,
+    "longitude": 120.120833333,
+    "source_url": "https://www.wikidata.org/entity/Q197543",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "宁波大学": {
+    "latitude": 29.911658,
+    "longitude": 121.633034,
+    "source_url": "https://www.wikidata.org/entity/Q4391363",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "同济大学": {
+    "latitude": 31.2827,
+    "longitude": 121.506631944,
+    "source_url": "https://www.wikidata.org/entity/Q16947",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "复旦大学": {
+    "latitude": 31.298888888,
+    "longitude": 121.499166666,
+    "source_url": "https://www.wikidata.org/entity/Q495015",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "华东师范大学": {
+    "latitude": 31.228055555,
+    "longitude": 121.4,
+    "source_url": "https://www.wikidata.org/entity/Q2034790",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "浙江工商大学": {
+    "latitude": 29.758075,
+    "longitude": 119.63798056,
+    "source_url": "https://www.wikidata.org/entity/Q8070664",
+    "precision": "university",
+    "label": "桐庐校区参考位置（非下沙校区）"
+  },
+  "中国计量大学": {
+    "latitude": 30.318976988,
+    "longitude": 120.364320319,
+    "source_url": "https://www.wikidata.org/entity/Q5099749",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "清华大学": {
+    "latitude": 40.0,
+    "longitude": 116.326666666,
+    "source_url": "https://www.wikidata.org/entity/Q16955",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "北京理工大学": {
+    "latitude": 39.957777777,
+    "longitude": 116.308333333,
+    "source_url": "https://www.wikidata.org/entity/Q23101",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "北京师范大学": {
+    "latitude": 39.957222222,
+    "longitude": 116.3625,
+    "source_url": "https://www.wikidata.org/entity/Q1604022",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "北京航空航天大学": {
+    "latitude": 39.98,
+    "longitude": 116.340833333,
+    "source_url": "https://www.wikidata.org/entity/Q2299797",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "武汉理工大学": {
+    "latitude": 30.609302,
+    "longitude": 114.356945,
+    "source_url": "https://www.wikidata.org/entity/Q832355",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "深圳大学": {
+    "latitude": 22.539256,
+    "longitude": 113.933684,
+    "source_url": "https://www.wikidata.org/entity/Q1945756",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "电子科技大学": {
+    "latitude": 30.752011,
+    "longitude": 103.927507,
+    "source_url": "https://www.wikidata.org/entity/Q5971900",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "北京大学": {
+    "latitude": 39.989722222,
+    "longitude": 116.305277777,
+    "source_url": "https://www.wikidata.org/entity/Q16952",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "四川大学": {
+    "latitude": 30.634471,
+    "longitude": 104.086377,
+    "source_url": "https://www.wikidata.org/entity/Q2281517",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "中国人民大学": {
+    "latitude": 39.970277777,
+    "longitude": 116.317777777,
+    "source_url": "https://www.wikidata.org/entity/Q1074117",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "广东工业大学": {
+    "latitude": 23.035921,
+    "longitude": 113.391671,
+    "source_url": "https://www.wikidata.org/entity/Q716822",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "浙江理工大学": {
+    "latitude": 30.31819,
+    "longitude": 120.35123,
+    "source_url": "https://www.wikidata.org/entity/Q8070672",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "华中科技大学": {
+    "latitude": 30.51,
+    "longitude": 114.41,
+    "source_url": "https://www.wikidata.org/entity/Q1711196",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "重庆大学": {
+    "latitude": 29.57035065,
+    "longitude": 106.47481537,
+    "source_url": "https://www.wikidata.org/entity/Q834857",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "武汉大学": {
+    "latitude": 30.540833333,
+    "longitude": 114.361111111,
+    "source_url": "https://www.wikidata.org/entity/Q1108197",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "南开大学": {
+    "latitude": 39.101111111,
+    "longitude": 117.164722222,
+    "source_url": "https://www.wikidata.org/entity/Q254204",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "中国海洋大学": {
+    "latitude": 36.065,
+    "longitude": 120.3325,
+    "source_url": "https://www.wikidata.org/entity/Q1074015",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "厦门大学": {
+    "latitude": 24.44,
+    "longitude": 118.09,
+    "source_url": "https://www.wikidata.org/entity/Q1153539",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "西南大学": {
+    "latitude": 29.813903,
+    "longitude": 106.412936,
+    "source_url": "https://www.wikidata.org/entity/Q840443",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "华南理工大学": {
+    "latitude": 23.155,
+    "longitude": 113.34226,
+    "source_url": "https://www.wikidata.org/entity/Q835366",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "西北工业大学": {
+    "latitude": 34.244722222,
+    "longitude": 108.911666666,
+    "source_url": "https://www.wikidata.org/entity/Q832550",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "中南大学": {
+    "latitude": 28.173,
+    "longitude": 112.925,
+    "source_url": "https://www.wikidata.org/entity/Q5061828",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "西安交通大学": {
+    "latitude": 34.244722222,
+    "longitude": 108.983611111,
+    "source_url": "https://www.wikidata.org/entity/Q981237",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "湖南大学": {
+    "latitude": 28.180277777,
+    "longitude": 112.952777777,
+    "source_url": "https://www.wikidata.org/entity/Q649868",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "天津大学": {
+    "latitude": 39.106944444,
+    "longitude": 117.169166666,
+    "source_url": "https://www.wikidata.org/entity/Q2031560",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "中山大学": {
+    "latitude": 23.098277777,
+    "longitude": 113.292713888,
+    "source_url": "https://www.wikidata.org/entity/Q178972",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "山东大学": {
+    "latitude": 36.671844444,
+    "longitude": 117.053983333,
+    "source_url": "https://www.wikidata.org/entity/Q604470",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "上海大学": {
+    "latitude": 31.316666666,
+    "longitude": 121.388888888,
+    "source_url": "https://www.wikidata.org/entity/Q1343386",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "东华大学": {
+    "latitude": 31.2035,
+    "longitude": 121.414,
+    "source_url": "https://www.wikidata.org/entity/Q837544",
+    "precision": "university",
+    "label": "延安路校区参考位置"
+  },
+  "吉林大学": {
+    "latitude": 43.88,
+    "longitude": 125.301111111,
+    "source_url": "https://www.wikidata.org/entity/Q1432030",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "兰州大学": {
+    "latitude": 36.046611111,
+    "longitude": 103.858055555,
+    "source_url": "https://www.wikidata.org/entity/Q4475799",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "南昌大学": {
+    "latitude": 28.665,
+    "longitude": 115.8,
+    "source_url": "https://www.wikidata.org/entity/Q3497259",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "哈尔滨工业大学": {
+    "latitude": 45.746998,
+    "longitude": 126.630692,
+    "source_url": "https://www.wikidata.org/entity/Q632558",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "大连理工大学": {
+    "latitude": 38.8744,
+    "longitude": 121.534,
+    "source_url": "https://www.wikidata.org/entity/Q1477368",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "南京航空航天大学": {
+    "latitude": 32.036005555,
+    "longitude": 118.813808333,
+    "source_url": "https://www.wikidata.org/entity/Q23110",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "东北大学": {
+    "latitude": 41.761666666,
+    "longitude": 123.416388888,
+    "source_url": "https://www.wikidata.org/entity/Q1363559",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "福州大学": {
+    "latitude": 26.059694444,
+    "longitude": 119.193694444,
+    "source_url": "https://www.wikidata.org/entity/Q470963",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "河海大学": {
+    "latitude": 32.05890556,
+    "longitude": 118.75408056,
+    "source_url": "https://www.wikidata.org/entity/Q662131",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "北京邮电大学": {
+    "latitude": 39.9598,
+    "longitude": 116.352,
+    "source_url": "https://www.wikidata.org/entity/Q4881210",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "哈尔滨工程大学": {
+    "latitude": 45.77222222,
+    "longitude": 126.675,
+    "source_url": "https://www.wikidata.org/entity/Q23102",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "郑州大学": {
+    "latitude": 34.809444444,
+    "longitude": 113.529166666,
+    "source_url": "https://www.wikidata.org/entity/Q649895",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "西安电子科技大学": {
+    "latitude": 34.12338889,
+    "longitude": 108.83588889,
+    "source_url": "https://www.wikidata.org/entity/Q649906",
+    "precision": "university",
+    "label": "学校参考位置（非全部校区）"
+  },
+  "杭州电子科技大学": {
+    "latitude": 30.25854,
+    "longitude": 120.16665,
+    "source_url": "https://www.wikidata.org/entity/Q137593225",
+    "precision": "city",
+    "label": "所在城市参考位置（校区坐标待核实）"
+  },
+  "温州大学": {
+    "latitude": 27.999128,
+    "longitude": 120.656075,
+    "source_url": "https://www.wikidata.org/entity/Q42635",
+    "precision": "city",
+    "label": "所在城市参考位置（校区坐标待核实）"
+  }
+}

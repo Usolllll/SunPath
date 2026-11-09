@@ -83,6 +83,18 @@ export interface Catalog {
   items: Group[];
   total: number;
   regions: string[];
+  universities: CatalogUniversity[];
+}
+export interface CatalogUniversity extends University {
+  group_ids: number[];
+  group_count: number;
+  location: {
+    latitude: number;
+    longitude: number;
+    source_url: string;
+    precision: string;
+    label: string;
+  } | null;
 }
 export interface ChatMessage {
   role: "user" | "assistant";

@@ -54,6 +54,8 @@ export const api = {
     ),
   catalog: (params: Record<string, unknown>) =>
     http.get<Catalog>("/catalog", { params }),
+  catalogDetail: (id: number, params: Record<string, unknown>) =>
+    http.get<Group>(`/catalog/${id}`, { params }),
   overview: () =>
     http.get<{
       universities: number;
