@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import "leaflet.markercluster";
-import "leaflet.markercluster/dist/MarkerCluster.css";
+import { Maximize2, RefreshCw, MapPin, ShieldCheck } from "lucide-vue-next";
 import type { CatalogUniversity } from "../api/types";
-import { Maximize2, RefreshCw, MapPin } from "lucide-vue-next";
+import { hasTiandituKey, loadTianditu } from "../utils/tianditu";
+import { createUniversityMap } from "../utils/universityMap";
 
 const props = defineProps<{
   schools: CatalogUniversity[];
@@ -13,194 +11,175 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ select: [id: number] }>();
 const host = ref<HTMLDivElement>();
-const tileFailed = ref(false);
 const located = computed(() => props.schools.filter((s) => s.location));
-let map: L.Map | undefined;
-let tiles: L.TileLayer;
-let clusters: L.MarkerClusterGroup;
-let resize: ResizeObserver;
-const markers = new Map<number, L.Marker>();
+const key = (import.meta.env.VITE_TIANDITU_KEY || "").trim();
+const configured = hasTiandituKey(key);
+const ready = ref(false);
+const loading = ref(false);
+const error = ref("");
+const tileFailed = ref(false);
+const mapId = `sunpath-tianditu-${Math.random().toString(36).slice(2)}`;
+let adapter: ReturnType<typeof createUniversityMap> | undefined;
+let resize: ResizeObserver | undefined;
+let disposed = false;
 
-function icon(active: boolean, city = false) {
-  return L.divIcon({
-    className:
-      "university-map-pin" +
-      (active ? " is-selected" : "") +
-      (city ? " is-city" : ""),
-    html: "<span></span>",
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
-  });
-}
-function fit() {
-  if (!map) return;
-  const bounds = L.latLngBounds(
-    located.value.map((s) => [s.location!.latitude, s.location!.longitude]),
-  );
-  if (bounds.isValid())
-    map.fitBounds(bounds, { padding: [55, 55], maxZoom: 12, animate: false });
-  else map.setView([34, 110], 4);
-}
-function selectMarker() {
-  if (!map) return;
-  markers.forEach((marker, id) =>
-    marker.setIcon(
-      icon(
-        id === props.selectedId,
-        props.schools.find((s) => s.id === id)?.location?.precision === "city",
-      ),
-    ),
-  );
-  const marker = props.selectedId ? markers.get(props.selectedId) : undefined;
-  if (marker)
-    clusters.zoomToShowLayer(marker, () => {
-      if (
-        !map ||
-        props.selectedId === null ||
-        markers.get(props.selectedId) !== marker
-      )
-        return;
-      map.panTo(marker.getLatLng());
-      marker.openTooltip();
-    });
-}
-function draw() {
-  if (!map) return;
-  clusters.clearLayers();
-  markers.clear();
-  for (const school of located.value) {
-    const location = school.location!;
-    const label = document.createElement("div");
-    const title = document.createElement("strong");
-    title.textContent = school.name;
-    const sub = document.createElement("div");
-    sub.textContent = `${school.region} · ${school.city} · ${school.group_count} 个专业组`;
-    const precision = document.createElement("div");
-    precision.textContent = location.label;
-    label.append(title, sub, precision);
-    const marker = L.marker([location.latitude, location.longitude], {
-      icon: icon(school.id === props.selectedId, location.precision === "city"),
-      title: school.name,
-      alt: school.name,
-      keyboard: true,
-    });
-    marker.bindTooltip(label, { direction: "top", offset: [0, -12] });
-    marker.on("click", () => emit("select", school.id));
-    markers.set(school.id, marker);
-    clusters.addLayer(marker);
+async function initialize() {
+  if (!configured || loading.value || disposed) return;
+  loading.value = true;
+  ready.value = false;
+  error.value = "";
+  tileFailed.value = false;
+  adapter?.destroy();
+  adapter = undefined;
+  host.value?.replaceChildren();
+  try {
+    const T = await loadTianditu(key);
+    if (disposed || !host.value) return;
+    adapter = createUniversityMap(T, mapId, (id) => emit("select", id));
+    adapter.update(props.schools, props.selectedId);
+    if (props.selectedId !== null) adapter.select(props.selectedId);
+    ready.value = true;
+  } catch {
+    error.value = "天地图未能加载，请检查网络、Key 权限和域名白名单后重试。";
+  } finally {
+    loading.value = false;
   }
-  fit();
+}
+function focusSelected() {
+  adapter?.select(props.selectedId);
+}
+function onResourceError(event: Event) {
+  if (
+    event.target instanceof HTMLImageElement &&
+    /^https?:/.test(event.target.src)
+  )
+    tileFailed.value = true;
 }
 onMounted(() => {
-  map = L.map(host.value!, {
-    minZoom: 3,
-    maxZoom: 18,
-    scrollWheelZoom: false,
-    zoomControl: false,
-    worldCopyJump: true,
-  }).setView([34, 110], 4);
-  L.control.zoom({ position: "bottomright" }).addTo(map);
-  L.control.scale({ imperial: false, position: "bottomleft" }).addTo(map);
-  // Browser cache and Referer are kept intact; no prefetching or geocoding requests.
-  tiles = L.tileLayer(
-    import.meta.env.VITE_MAP_TILE_URL ||
-      "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    {
-      maxZoom: 19,
-      attribution:
-        import.meta.env.VITE_MAP_ATTRIBUTION ||
-        '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
-    },
-  ).addTo(map);
-  tiles.on("tileerror", () => {
-    tileFailed.value = true;
-  });
-  clusters = L.markerClusterGroup({
-    maxClusterRadius: 38,
-    showCoverageOnHover: false,
-    iconCreateFunction: (cluster) =>
-      L.divIcon({
-        html: `<span>${cluster.getChildCount()}</span>`,
-        className: "university-map-cluster",
-        iconSize: [38, 38],
-      }),
-  }).addTo(map);
+  host.value?.addEventListener("error", onResourceError, true);
   resize = new ResizeObserver(() => {
-    map?.invalidateSize();
-    if (props.selectedId === null) fit();
+    adapter?.resize();
+    if (props.selectedId === null) adapter?.fit();
   });
-  resize.observe(host.value!);
-  draw();
+  if (host.value) resize.observe(host.value);
+  void initialize();
 });
-watch(() => props.schools, draw);
-watch(() => props.selectedId, selectMarker);
-defineExpose({ focusSelected: selectMarker });
+watch(
+  () => props.schools,
+  (schools) => adapter?.update(schools, props.selectedId),
+);
+watch(() => props.selectedId, focusSelected);
+defineExpose({ focusSelected });
 onBeforeUnmount(() => {
+  disposed = true;
   resize?.disconnect();
-  map?.remove();
-  map = undefined;
+  host.value?.removeEventListener("error", onResourceError, true);
+  adapter?.destroy();
+  adapter = undefined;
 });
 </script>
 
 <template>
   <div class="university-map-shell">
-    <div ref="host" class="university-map" aria-label="院校地理位置地图"></div>
-    <div class="map-caption">
-      <MapPin :size="14" /><span
-        >院校分布 <strong>{{ located.length }}</strong> 所</span
+    <div class="map-stage">
+      <div
+        :id="mapId"
+        ref="host"
+        class="university-map"
+        aria-label="天地图院校地理位置地图"
+      ></div>
+      <div class="map-caption">
+        <MapPin :size="14" /><span
+          >院校分布 <strong>{{ located.length }}</strong> 所</span
+        >
+      </div>
+      <button
+        v-if="ready"
+        class="map-fit"
+        type="button"
+        @click="adapter?.fit()"
+        aria-label="显示全部筛选院校"
       >
-    </div>
-    <button
-      class="map-fit"
-      type="button"
-      @click="fit"
-      aria-label="显示全部筛选院校"
-    >
-      <Maximize2 :size="15" />显示全部
-    </button>
-    <div v-if="tileFailed" class="map-warning" role="status">
-      底图部分加载失败，请检查网络。院校位置仍可点击。<button
-        @click="
-          tileFailed = false;
-          tiles.redraw();
-        "
-      >
-        <RefreshCw :size="12" />重试底图
+        <Maximize2 :size="15" />显示全部
       </button>
+      <div
+        v-if="!configured || error || loading"
+        class="map-state"
+        role="status"
+      >
+        <span class="map-state-icon"
+          ><ShieldCheck :size="30" :stroke-width="1.4"
+        /></span>
+        <h3>
+          {{
+            !configured
+              ? "天地图服务待启用"
+              : loading
+                ? "正在加载天地图"
+                : "地图暂时无法加载"
+          }}
+        </h3>
+        <p v-if="!configured">
+          请联系管理员配置天地图 Web 端 Key。院校列表和招生查询仍可正常使用。
+        </p>
+        <p v-else-if="loading">正在连接天地图官方地图服务，请稍候。</p>
+        <p v-else>{{ error }}</p>
+        <a
+          v-if="!configured"
+          href="https://console.tianditu.gov.cn/"
+          target="_blank"
+          rel="noopener noreferrer"
+          >前往天地图控制台 ↗</a
+        >
+        <button v-else-if="!loading" class="map-retry" @click="initialize">
+          <RefreshCw :size="13" />重新加载
+        </button>
+      </div>
+      <div v-if="ready && tileFailed" class="map-warning" role="status">
+        部分地图资源加载失败，请检查网络和服务授权。<button @click="initialize">
+          <RefreshCw :size="12" />重试
+        </button>
+      </div>
+      <div v-if="ready && !located.length" class="map-empty">
+        {{
+          schools.length ? "这些学校尚未收录参考坐标" : "暂无符合筛选条件的院校"
+        }}
+      </div>
     </div>
-    <div v-if="!located.length" class="map-empty">
-      {{
-        schools.length ? "这些学校尚未收录参考坐标" : "暂无符合筛选条件的院校"
-      }}
-    </div>
+    <!-- Keep this outside the SDK canvas; never cover the official logo, approval number or copyright. -->
     <div class="map-legend">
-      <i></i>学校参考位置 <span>数字为邻近院校数量，点击展开</span>
+      <span><i></i>学校参考位置</span
+      ><span
+        >底图服务：<a
+          href="https://www.tianditu.gov.cn/"
+          target="_blank"
+          rel="noopener noreferrer"
+          >天地图</a
+        ></span
+      ><span class="cluster-hint">点击聚合标记可展开</span>
     </div>
   </div>
 </template>
 
 <style scoped>
-:deep(.university-map-pin.is-city:not(.is-selected) span) {
-  background: #fff;
-  border: 2px dashed #657c94;
-}
 .university-map-shell {
-  position: relative;
   min-width: 0;
   isolation: isolate;
-  background: #e9f0f3;
+  background: #edf2f5;
+}
+.map-stage {
+  position: relative;
 }
 .university-map {
-  height: 610px;
+  height: 570px;
   width: 100%;
-  z-index: 0;
   font-family: inherit;
 }
 .map-caption,
 .map-fit {
   position: absolute;
   top: 18px;
-  z-index: 1;
+  z-index: 450;
   background: #fff;
   border: 1px solid #e1e7ef;
   border-radius: 7px;
@@ -213,62 +192,117 @@ onBeforeUnmount(() => {
   padding: 10px 12px;
 }
 .map-caption {
-  left: 18px;
+  left: 54px;
 }
 .map-caption strong {
   color: #2766b3;
   padding: 0 3px;
 }
 .map-fit {
-  right: 18px;
+  right: 65px;
   cursor: pointer;
 }
 .map-fit:hover {
   background: #f5f8fc;
 }
 .map-legend {
-  position: absolute;
-  bottom: 38px;
-  left: 14px;
-  background: #ffffffed;
-  padding: 7px 10px;
-  border-radius: 5px;
-  z-index: 1;
+  min-height: 40px;
+  background: #f8fafc;
+  padding: 10px 14px;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 14px;
+  flex-wrap: wrap;
   font-size: 9px;
-  color: #57708a;
+  color: #7e91a8;
+  border-top: 1px solid #e6ecf2;
+}
+.map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 .map-legend i {
   width: 7px;
   height: 7px;
-  background: #337bca;
+  background: #397cc9;
   border-radius: 50%;
 }
-.map-legend span {
-  color: #8795a7;
-  margin-left: 6px;
+.map-legend a {
+  color: #4b78ab;
+}
+.map-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 13px;
+  text-align: center;
+  padding: 65px 28px;
+  color: #68829f;
+  background: radial-gradient(
+    ellipse at 50% 40%,
+    #fff 0%,
+    #f1f5f8 65%,
+    #e9f0f4 100%
+  );
+}
+.map-state-icon {
+  width: 66px;
+  height: 66px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  color: #6c8eac;
+  background: #e6edf5;
+  margin-bottom: 7px;
+}
+.map-state h3 {
+  font-size: 17px;
+  color: #3d5b7a;
+  font-weight: 500;
+}
+.map-state p {
+  max-width: 330px;
+  font-size: 12px;
+  line-height: 1.9;
+}
+.map-state a,
+.map-retry {
+  font-size: 11px;
+  color: #3573b7;
+  margin-top: 5px;
+}
+.map-retry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid #cbd9e9;
+  border-radius: 5px;
+  background: #fff;
 }
 .map-warning {
   position: absolute;
-  top: 72px;
+  top: 75px;
   left: 18px;
   right: 18px;
-  background: #fff7e8;
+  z-index: 450;
   padding: 10px;
-  font-size: 10px;
-  z-index: 2;
+  background: #fff7e8;
   border: 1px solid #e8d6b2;
   border-radius: 6px;
+  font-size: 10px;
   color: #886b3b;
 }
 .map-warning button {
   display: inline-flex;
-  gap: 4px;
   align-items: center;
-  margin-left: 8px;
+  gap: 4px;
   color: #326eb5;
+  margin-left: 8px;
 }
 .map-empty {
   position: absolute;
@@ -281,67 +315,41 @@ onBeforeUnmount(() => {
   color: #6f8199;
   font-size: 12px;
   pointer-events: none;
+  z-index: 450;
 }
-:deep(.university-map-pin) {
-  background: transparent;
-  border: 0;
-  display: grid;
-  place-items: center;
-}
-:deep(.university-map-pin span) {
-  display: block;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  background: #397cc9;
-  border: 3px solid #fff;
-  box-shadow: 0 1px 7px #174b7a66;
-  transition: transform 0.15s;
-}
-:deep(.university-map-pin.is-selected span) {
-  background: #dc9b40;
-  width: 19px;
-  height: 19px;
-  box-shadow: 0 0 0 6px #eab45d44;
-}
-:deep(.university-map-cluster) {
-  border-radius: 50%;
-  background: #bad4eb80;
-  padding: 4px;
-}
-:deep(.university-map-cluster span) {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  background: #2e6eac;
-  color: #fff;
-  border-radius: 50%;
-  font-size: 11px;
-  font-weight: 600;
-}
-:deep(.leaflet-tooltip) {
-  padding: 10px 12px;
-  color: #365576;
-  border-color: #dce6f0;
+:deep(.university-map-info) {
+  color: #47627e;
   line-height: 1.8;
+  font-family: inherit;
 }
-:deep(.leaflet-tooltip strong) {
-  font-size: 12px;
+:deep(.university-map-info strong) {
+  font-size: 13px;
 }
-:deep(.leaflet-tooltip div div) {
-  color: #8b9aaf;
+:deep(.university-map-info p) {
   font-size: 10px;
-}
-:deep(.leaflet-control-attribution) {
-  font-size: 9px;
+  margin-top: 4px;
+  color: #8294a9;
 }
 @media (max-width: 760px) {
   .university-map {
-    height: 390px;
+    height: 350px;
   }
-  .map-legend span {
-    display: none;
+  .cluster-hint {
+    display: none !important;
+  }
+  .map-caption,
+  .map-fit {
+    font-size: 10px;
+    padding: 9px;
+  }
+  .map-caption {
+    left: 54px;
+  }
+  .map-state h3 {
+    font-size: 15px;
+  }
+  .map-state p {
+    font-size: 11px;
   }
 }
 </style>
