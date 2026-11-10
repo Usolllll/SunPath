@@ -158,12 +158,14 @@ def summarize(diff: dict) -> str:
     major = diff['metric_delta']['major']
 
     def direction(value):
-        if value > 0:
+        if value >= 0.5:
             return '提升', abs(value)
-        if value < 0:
+        if value <= -0.5:
             return '下降', abs(value)
-        return '持平', 0
+        return '基本持平', 0
 
-    s_word, s_value = direction(school)
-    m_word, m_value = direction(major)
-    return f"切换后 {diff['changed']} 个志愿变化：院校层次平均{s_word}{s_value:.0f} 分，专业对口{m_word}{m_value:.0f} 分"
+    def phrase(name, value):
+        word, amount = direction(value)
+        return f'{name}{word}' if word == '基本持平' else f'{name}平均{word}{amount:.0f} 分'
+
+    return f"切换后 {diff['changed']} 个志愿变化：{phrase('院校层次', school)}，{phrase('专业对口', major)}"
