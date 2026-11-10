@@ -14,6 +14,11 @@ http.interceptors.response.use(
   (response) => response,
   (error) => {
     if (axios.isCancel(error)) return Promise.reject(error);
+    // 专业卡未收录属于正常缺数据，由抽屉展示“未收录”，不弹全局错误提示
+    const missingMajorCard =
+      error.response?.status === 404 &&
+      (error.config?.url || "").startsWith("/majors/");
+    if (missingMajorCard) return Promise.reject(error);
     const detail = error.response?.data?.detail;
     const missingAiRoute =
       error.response?.status === 404 &&

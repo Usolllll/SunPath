@@ -4,8 +4,16 @@ import type {
   Profile,
   Plan,
   Recommendation,
+  RecommendationCompare,
+  GeneratedPlan,
+  PriorityMode,
   Catalog,
   Group,
+  MajorList,
+  MajorCard,
+  Coverage,
+  Readiness,
+  BudgetEstimate,
   ChatMessage,
   ChatReply,
   ChatAvailableContext,
@@ -38,20 +46,49 @@ export const api = {
   name: (name: string) => http.patch<User>("/auth/me", { name }),
   password: (data: { current_password: string; new_password: string }) =>
     http.put("/auth/password", data),
-  recommendations: () => http.get<Recommendation>("/recommendations"),
+  /** v2：mode = 取舍沙盘的排序模式；budget_cap 为显式预算硬筛（默认不隐藏候选） */
+  recommendations: (options: { mode?: PriorityMode; budget_cap?: number } = {}) =>
+    http.get<Recommendation>("/recommendations", {
+      params: {
+        ...(options.mode ? { mode: options.mode } : {}),
+        ...(options.budget_cap ? { budget_cap: options.budget_cap } : {}),
+      },
+    }),
+  /** v2：同一候选池、同一配额下两种模式的并排差异 */
+  compare: (
+    mode_a: PriorityMode,
+    mode_b: PriorityMode,
+    count = 12,
+  ) =>
+    http.get<RecommendationCompare>("/recommendations/compare", {
+      params: { mode_a, mode_b, count },
+    }),
+  /** v2：按当前模式生成冲稳保方案（1:2:1 配额） */
+  generatePlan: (count = 12, mode?: PriorityMode) =>
+    http.post<GeneratedPlan>("/recommendations/generate", null, {
+      params: { count, ...(mode ? { mode } : {}) },
+    }),
   aiMatch: (count: number, signal: AbortSignal) =>
     http.post<Recommendation>(
       "/recommendations/ai",
       { count },
       { timeout: 135000, signal },
     ),
-  meta: () => http.get<{ regions: string[] }>("/meta"),
-  generate: (count = 12) =>
-    http.post<{ items: Group[]; missing_tiers: string[]; message: string }>(
-      "/recommendations/generate",
-      null,
-      { params: { count } },
-    ),
+  majors: () => http.get<MajorList>("/majors"),
+  majorDetail: (name: string) =>
+    http.get<MajorCard>(`/majors/${encodeURIComponent(name)}`),
+  coverage: () => http.get<Coverage>("/options/coverage"),
+  readiness: (groupId: number) => http.get<Readiness>(`/groups/${groupId}/readiness`),
+  budgetEstimate: (groupId: number) =>
+    http.get<BudgetEstimate>("/budget/estimate", { params: { group_id: groupId } }),
+  meta: () =>
+    http.get<{
+      regions: string[];
+      modes: { key: PriorityMode; label: string; weights: Record<string, number> }[];
+      budget_tiers: { name: string; range: string }[];
+      engine_version: string;
+      disclaimer: string;
+    }>("/meta"),
   catalog: (params: Record<string, unknown>) =>
     http.get<Catalog>("/catalog", { params }),
   catalogDetail: (id: number, params: Record<string, unknown>) =>
