@@ -1,10 +1,21 @@
-"""Authoritative eligibility/risk checks; AI selection cannot bypass these rules."""
+"""Authoritative eligibility/risk checks; AI selection cannot bypass these rules.
+
+v2：新增「取舍沙盘」模式（school / balanced / major）与预算上限。模式**只改变同一梯度内的
+选择与顺序**，绝不改变候选池（哪些组合格）与冲稳保配额；缺省 mode 时回退一期排序行为。
+"""
+from app.services import budget, scoring
 from app.services.catalog import load_groups, serialize_group
 
-ENGINE_VERSION = 'rank-rules-v1'
+ENGINE_VERSION = 'rank-rules-v2'
 
-def recommend(db, profile, groups=None):
+
+def _cost(item):
+    return budget.four_year_cost(item)
+
+
+def recommend(db, profile, groups=None, mode=None, budget_cap=None, include_cost=True):
     results = []
+    interests = getattr(profile, 'interests', None)
     for group in (load_groups(db) if groups is None else groups):
         if not set(group.required_subjects).issubset(set(profile.subjects)):
             continue
@@ -31,12 +42,26 @@ def recommend(db, profile, groups=None):
         warnings = ['模拟数据估算，不代表录取概率', '冲刺梯度，建议搭配稳妥与保底志愿' if risk == 'reach' else '录取位次可能随招生计划和报考热度变化']
         if volatility > 12:
             warnings.append(f'历史位次波动 {volatility}%，需重点关注')
-        item.update(risk=risk, baseline_rank=baseline, history_rank_min=min(ranks), history_rank_max=max(ranks), rank_ratio=round(ratio, 4), volatility=volatility, reasons=reasons, warnings=warnings,
+        item.update(risk=risk, baseline_rank=baseline, history_rank_min=min(ranks), history_rank_max=max(ranks),
+                    rank_ratio=round(ratio, 4), volatility=volatility, reasons=reasons, warnings=warnings,
                     preference_matches=int(region_match) + int(major_match))
+        if include_cost:
+            item['cost'] = _cost(item)
+        if mode is not None:
+            item.update(scoring.score_item(item, profile, mode, interests))
         results.append(item)
-    # Preference matches first; within ties choose nearest rank reference. Never treat the score as a probability.
-    results.sort(key=lambda x: (-x['preference_matches'], abs(x['rank_ratio'] - 0.95), x['id']))
+
+    if mode is None:
+        # 一期行为（兼容路径）：偏好命中优先，其次最接近参考位次
+        results.sort(key=lambda x: (-x['preference_matches'], abs(x['rank_ratio'] - 0.95), x['id']))
+    else:
+        results.sort(key=lambda x: (-x['total_score'], abs(x['rank_ratio'] - 0.95), x['id']))
+
+    if budget_cap:
+        # 硬筛：只在调用方显式要求时过滤；默认不隐藏，避免信息茧房
+        results = [item for item in results if not item.get('cost') or item['cost']['total'] <= budget_cap]
     return results
+
 
 def balanced_plan(items, count=12):
     buckets = {risk: [x for x in items if x['risk'] == risk] for risk in ['reach', 'steady', 'safe']}
