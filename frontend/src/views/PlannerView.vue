@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import {
   ArrowUp,
   ArrowDown,
@@ -11,6 +11,7 @@ import {
   GripVertical,
   Download,
   FilePlus2,
+  Wallet,
 } from "lucide-vue-next";
 import { ElMessage } from "element-plus/es/components/message/index";
 import { ElMessageBox } from "element-plus/es/components/message-box/index";
@@ -19,6 +20,7 @@ import { usePlanner } from "../stores/planner";
 import { useAuth } from "../stores/auth";
 import { api } from "../api";
 import { number, riskLabels, exportPlan } from "../utils/format";
+import { overBudgetText, wan } from "../utils/decision";
 import RiskBadge from "../components/RiskBadge.vue";
 import GroupDrawer from "../components/GroupDrawer.vue";
 import type { Group } from "../api/types";
@@ -29,6 +31,7 @@ const saving = ref(false);
 const saveAs = ref(false);
 const saveDialog = ref(false);
 const exporting = ref(false);
+const costing = ref(false);
 const detail = ref<Group | null>(null);
 const drawer = ref(false);
 const counts = computed(() =>
@@ -39,6 +42,53 @@ const counts = computed(() =>
     ]),
   ),
 );
+// v2：方案四年总成本（估算）+ 超预算项提示
+const budget = computed(() => auth.user?.profile?.budget_total ?? null);
+const totalCost = computed(() =>
+  planner.items.reduce((sum, item) => sum + (item.cost?.total ?? 0), 0),
+);
+const pricedCount = computed(
+  () => planner.items.filter((item) => item.cost?.total != null).length,
+);
+const missingCount = computed(() => planner.items.length - pricedCount.value);
+const overItems = computed(() =>
+  planner.items.filter(
+    (item) =>
+      item.cost?.total != null &&
+      budget.value != null &&
+      item.cost.total > budget.value,
+  ).length,
+);
+function itemOverText(item: Group): string | null {
+  return overBudgetText(item.cost?.total ?? null, budget.value);
+}
+/** 旧版保存的方案可能没有 cost 字段：按专业组补拉一次四年成本估算 */
+async function ensureCosts() {
+  const missing = planner.items
+    .filter((item) => item.cost?.total == null)
+    .slice(0, 30);
+  if (!missing.length) return;
+  costing.value = true;
+  await Promise.all(
+    missing.map(async (item) => {
+      try {
+        const { data } = await api.budgetEstimate(item.id);
+        const index = planner.items.findIndex((x) => x.id === item.id);
+        if (index >= 0)
+          planner.items[index] = { ...planner.items[index], cost: data.cost };
+      } catch {
+        /* 拉取失败时保留“未收录” */
+      }
+    }),
+  );
+  costing.value = false;
+}
+watch(
+  () => planner.items.map((item) => item.id).join(","),
+  () => void ensureCosts(),
+);
+onMounted(() => void ensureCosts());
+
 const stale = computed(
   () =>
     planner.items.length &&
@@ -165,6 +215,14 @@ async function download() {
             <span>加权参考位次</span
             ><strong>{{ number(item.baseline_rank) }}</strong>
           </div>
+          <div
+            :class="['planner-cost', { over: itemOverText(item) }]"
+            :title="item.cost?.note || '四年成本未收录'"
+          >
+            <span>四年约</span>
+            <strong>{{ wan(item.cost?.total) }}</strong>
+            <em v-if="itemOverText(item)">{{ itemOverText(item) }}</em>
+          </div>
           <div class="planner-row-actions">
             <button
               class="icon-button"
@@ -213,6 +271,39 @@ async function download() {
             <RiskBadge :risk="risk" /><strong
               >{{ counts[risk] }} <small>个专业组</small></strong
             >
+          </div>
+          <div v-loading="costing" class="plan-cost-block">
+            <div class="plan-cost-head">
+              <span class="plan-cost-title"
+                ><Wallet :size="15" />方案四年成本合计（估算）</span
+              >
+              <span class="tag subtle">各志愿成本之和</span>
+            </div>
+            <div class="plan-cost-value">
+              <strong>{{ wan(totalCost) }}</strong
+              ><small>约</small>
+            </div>
+            <div v-if="budget" class="plan-cost-budget">
+              家庭预算 {{ wan(budget) }} ·
+              <strong v-if="overItems" class="cost-over-text"
+                >{{ overItems }} / {{ planner.items.length }}
+                个志愿的四年成本超出预算（单项超支见列表角标）</strong
+              >
+              <strong v-else class="cost-ok-text">全部在预算内</strong>
+            </div>
+            <div v-else class="plan-cost-budget">
+              尚未设置家庭预算，可在考生画像中补充
+            </div>
+            <p class="plan-cost-note">
+              {{ pricedCount }} / {{ planner.items.length }} 个专业组已收录成本估算<span
+                v-if="missingCount"
+                >，{{ missingCount }} 个未收录</span
+              >；合计为各志愿四年成本之和，只用于横向比较预算压力，不代表实际支出。学费
+              / 住宿费来自采集字段，生活费按城市等级估算，非官方数据。
+            </p>
+          </div>
+          <div class="plan-cost-warning">
+            <Info :size="14" />排序 ≠ 录取，数据为模拟 / 估算：模式与成本只用于同梯度内取舍，不代表录取结果。
           </div>
           <div class="summary-note">
             <Info :size="15" />

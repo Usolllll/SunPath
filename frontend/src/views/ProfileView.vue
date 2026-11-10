@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, onMounted } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import {
   ArrowRight,
   Save,
@@ -7,11 +7,27 @@ import {
   MapPin,
   Heart,
   Check,
+  Target,
+  Wallet,
+  Stethoscope,
+  Info,
 } from "lucide-vue-next";
 import { ElMessage } from "element-plus/es/components/message/index";
 import { api } from "../api";
 import { useAuth } from "../stores/auth";
-import type { Profile } from "../api/types";
+import type { PriorityMode, Profile } from "../api/types";
+import CoverageCard from "../components/CoverageCard.vue";
+import InterestRadar from "../components/InterestRadar.vue";
+import {
+  MODE_HINTS,
+  MODE_LABELS,
+  MODE_WEIGHTS,
+  MODES,
+  budgetTier,
+  percent,
+  wan,
+} from "../utils/decision";
+type Interests = Partial<Record<"R" | "I" | "A" | "S" | "E" | "C", number>>;
 const auth = useAuth();
 const busy = ref(false);
 const form = reactive<Profile>(
@@ -25,6 +41,11 @@ const form = reactive<Profile>(
         subjects: [],
         regions: [],
         majors: [],
+        priority_mode: "balanced",
+        budget_total: null,
+        interests: null,
+        physical: null,
+        intent_types: null,
       },
 );
 const subjects = ["物理", "化学", "生物", "历史", "政治", "地理"];
@@ -37,6 +58,32 @@ const targetRegions = ref([
   "四川",
   "广东",
 ]);
+// v2 决策偏好
+const priorityMode = ref<PriorityMode>(form.priority_mode ?? "balanced");
+const budgetWan = ref<number | undefined>(
+  form.budget_total ? Math.round(form.budget_total / 1000) / 10 : undefined,
+);
+const physical = reactive<{
+  color_weak: boolean;
+  color_blind: boolean;
+  naked_vision?: number;
+  corrected_vision?: number;
+}>({
+  color_weak: form.physical?.color_weak ?? false,
+  color_blind: form.physical?.color_blind ?? false,
+  naked_vision: form.physical?.naked_vision ?? undefined,
+  corrected_vision: form.physical?.corrected_vision ?? undefined,
+});
+const interests = ref<Interests>(form.interests ? { ...form.interests } : {});
+const budgetYuan = computed(() => {
+  if (typeof budgetWan.value !== "number" || Number.isNaN(budgetWan.value))
+    return null;
+  return Math.round(budgetWan.value * 10000);
+});
+const policy = computed(() => MODE_WEIGHTS[priorityMode.value]);
+const coverageKey = computed(() =>
+  JSON.stringify(auth.user?.profile?.subjects ?? []),
+);
 onMounted(async () => {
   try {
     targetRegions.value = (await api.meta()).data.regions;
@@ -45,10 +92,28 @@ onMounted(async () => {
   }
 });
 const complete = computed(() => form.subjects.length === 3 && form.rank > 0);
+watch(priorityMode, (value) => {
+  form.priority_mode = value;
+});
 async function save() {
   if (!complete.value)
     return ElMessage.warning("请填写有效位次并选择三门选考科目");
   busy.value = true;
+  form.priority_mode = priorityMode.value;
+  form.budget_total = budgetYuan.value;
+  form.physical = {
+    color_weak: physical.color_weak,
+    color_blind: physical.color_blind,
+    ...(typeof physical.naked_vision === "number"
+      ? { naked_vision: physical.naked_vision }
+      : {}),
+    ...(typeof physical.corrected_vision === "number"
+      ? { corrected_vision: physical.corrected_vision }
+      : {}),
+  };
+  form.interests = Object.keys(interests.value).length
+    ? interests.value
+    : null;
   try {
     auth.user = (await api.profile(form)).data;
     ElMessage.success("考生画像已保存，推荐将按最新画像计算");
@@ -163,6 +228,80 @@ async function save() {
           :label="major"
           :value="major"
       /></el-select>
+      <div class="form-section-title second">
+        <span class="metric-icon purple"><Target :size="20" /></span>
+        <div>
+          <h3>我的决策偏好</h3>
+          <p>决定推荐排序的权重：只改变同梯度内的选择与顺序，不改变候选池与冲稳保配额</p>
+        </div>
+      </div>
+      <div class="mode-choice" role="radiogroup" aria-label="决策偏好">
+        <button
+          v-for="key in MODES"
+          :key="key"
+          type="button"
+          role="radio"
+          :aria-checked="priorityMode === key"
+          :class="['mode-choice-item', { active: priorityMode === key }]"
+          @click="priorityMode = key"
+        >
+          <strong>{{ MODE_LABELS[key] }}</strong>
+          <small>{{ MODE_HINTS[key] }}</small>
+          <span class="mode-choice-weights">
+            院校 {{ percent(MODE_WEIGHTS[key].school) }} · 专业
+            {{ percent(MODE_WEIGHTS[key].major) }} · 位次适配
+            {{ percent(MODE_WEIGHTS[key].fit) }}
+          </span>
+        </button>
+      </div>
+      <p class="field-hint">
+        当前权重：院校 {{ percent(policy.school) }} · 专业
+        {{ percent(policy.major) }} · 位次适配 {{ percent(policy.fit) }}
+        <span class="muted">（与智能匹配页的三档模式一致）</span>
+      </p>
+      <div class="form-grid budget-physical-grid">
+        <label
+          >家庭四年预算（万元）<el-input-number
+            v-model="budgetWan"
+            :min="0"
+            :max="200"
+            :step="1"
+            controls-position="right"
+            placeholder="暂不设置"
+          /><small v-if="budgetYuan"
+            >约 {{ wan(budgetYuan) }} · 参考分档：{{
+              budgetTier(budgetYuan)
+            }}；用于超预算提示，不会隐藏候选</small
+          ><small v-else>不填表示暂不设置预算，仍会显示四年成本估算</small></label
+        >
+      </div>
+      <div class="physical-block">
+        <h4><Stethoscope :size="15" />体检简项（用于报考准备清单提示）</h4>
+        <div class="physical-grid">
+          <el-checkbox v-model="physical.color_weak">色弱</el-checkbox>
+          <el-checkbox v-model="physical.color_blind">色盲</el-checkbox>
+          <label
+            >裸眼视力（任一眼）<el-input-number
+              v-model="physical.naked_vision"
+              :min="3"
+              :max="5.3"
+              :step="0.1"
+              :precision="1"
+              controls-position="right"
+          /></label>
+          <label
+            >矫正度数（度）<el-input-number
+              v-model="physical.corrected_vision"
+              :min="0"
+              :max="2000"
+              :step="50"
+              controls-position="right"
+          /></label>
+        </div>
+        <p class="physical-hint">
+          <Info :size="13" />仅用于在专业组详情里提示可能相关的《体检指导意见》条款，不构成报考资格认定；缺数据时不做推测。
+        </p>
+      </div>
       <div class="form-actions">
         <span><Check :size="14" />仅用于你的专属志愿规划</span
         ><el-button
@@ -198,6 +337,7 @@ async function save() {
           >前往智能匹配<ArrowRight :size="16"
         /></RouterLink>
       </div>
+      <CoverageCard :profile-key="coverageKey" />
       <div class="notice">
         <strong>关于模拟数据</strong>
         <p>
@@ -205,7 +345,11 @@ async function save() {
           年时暂无招生计划，系统会明确返回空结果。
         </p>
         <p>专业组选科与数据均为演示用途，不能替代当地考试院正式规则。</p>
+        <p>
+          成本、城市分级、转专业友好度均为模拟 / 估算值，缺失时显示“未收录”。
+        </p>
       </div>
     </aside>
   </div>
+  <InterestRadar v-model="interests" />
 </template>

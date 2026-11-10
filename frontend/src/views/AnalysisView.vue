@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref } from "vue";
+import { computed, onMounted, onBeforeUnmount, nextTick, ref } from "vue";
 import axios from "axios";
 import {
   ArrowRight,
@@ -7,17 +7,29 @@ import {
   SlidersHorizontal,
   Check,
   Info,
+  ListOrdered,
 } from "lucide-vue-next";
 import { ElMessage } from "element-plus/es/components/message/index";
 import { ElMessageBox } from "element-plus/es/components/message-box/index";
 import { useRouter } from "vue-router";
 import { api } from "../api";
-import type { Group, Recommendation } from "../api/types";
+import type {
+  Group,
+  PriorityMode,
+  Recommendation,
+  RecommendationCompare,
+  Weights,
+} from "../api/types";
 import { useAuth } from "../stores/auth";
 import { usePlanner } from "../stores/planner";
 import { number, riskLabels } from "../utils/format";
+import { MODE_LABELS, MODE_WEIGHTS } from "../utils/decision";
 import SchoolCard from "../components/SchoolCard.vue";
 import GroupDrawer from "../components/GroupDrawer.vue";
+import ModeSwitch from "../components/ModeSwitch.vue";
+import DiffBar from "../components/DiffBar.vue";
+import CompareDrawer from "../components/CompareDrawer.vue";
+import MajorCardDrawer from "../components/MajorCardDrawer.vue";
 const auth = useAuth();
 const planner = usePlanner();
 const router = useRouter();
@@ -33,6 +45,7 @@ const validCount = computed(
 );
 let controller: AbortController | undefined;
 const generating = ref(false);
+const generatingPlan = ref(false);
 const failed = ref(false);
 const tab = ref("all");
 const region = ref("");
@@ -43,8 +56,19 @@ const data = ref<Recommendation>({
   disclaimer: "",
   engine_version: "",
 });
+// v2 取舍沙盘
+const mode = ref<PriorityMode>(auth.user?.profile?.priority_mode ?? "balanced");
+const weights = ref<Weights>(MODE_WEIGHTS[mode.value]);
+const modeLoading = ref(false);
+const compare = ref<RecommendationCompare | null>(null);
+const compareOpen = ref(false);
+const compareLoading = ref(false);
+const diffVisible = ref(false);
+let diffTimer: ReturnType<typeof setTimeout> | undefined;
 const detail = ref<Group | null>(null);
 const drawer = ref(false);
+const majorOpen = ref(false);
+const majorName = ref<string | null>(null);
 const filtered = computed(() =>
   data.value.items.filter(
     (g) =>
@@ -63,11 +87,58 @@ async function load() {
   failed.value = false;
   aiFailed.value = false;
   try {
-    data.value = (await api.recommendations()).data;
+    data.value = (await api.recommendations({ mode: mode.value })).data;
+    weights.value = data.value.weights ?? MODE_WEIGHTS[mode.value];
+    // 首次进入：若画像的决策偏好不是“均衡”，直接展示相对均衡基准的差异条
+    if (mode.value !== "balanced") void refreshCompare("balanced", mode.value, false);
   } catch {
     failed.value = true;
   } finally {
     busy.value = false;
+  }
+}
+async function refreshCompare(
+  modeA: PriorityMode,
+  modeB: PriorityMode,
+  animate: boolean,
+) {
+  if (diffTimer) clearTimeout(diffTimer);
+  compareLoading.value = true;
+  diffVisible.value = false;
+  try {
+    compare.value = (await api.compare(modeA, modeB, matchCount.value)).data;
+    if (animate) {
+      await nextTick();
+      diffTimer = setTimeout(() => {
+        diffVisible.value = true;
+      }, 60);
+    } else diffVisible.value = true;
+  } catch {
+    compare.value = null;
+    diffVisible.value = false;
+  } finally {
+    compareLoading.value = false;
+  }
+}
+async function switchMode(next: PriorityMode) {
+  if (next === mode.value || busy.value || aiBusy.value || modeLoading.value)
+    return;
+  const previous = mode.value;
+  mode.value = next;
+  modeLoading.value = true;
+  failed.value = false;
+  try {
+    data.value = (await api.recommendations({ mode: next })).data;
+    weights.value = data.value.weights ?? MODE_WEIGHTS[next];
+    tab.value = "all";
+    ElMessage.info(`已切换为「${MODE_LABELS[next]}」排序，候选列表按新权重重排`);
+    void refreshCompare(previous, next, true);
+  } catch {
+    mode.value = previous;
+    weights.value = MODE_WEIGHTS[previous];
+    failed.value = true;
+  } finally {
+    modeLoading.value = false;
   }
 }
 async function runAi() {
@@ -141,12 +212,58 @@ async function generate() {
     generating.value = false;
   }
 }
+/** v2：按当前沙盘模式生成冲稳保方案（1:2:1 配额，同梯度内按权重排序） */
+async function generateByMode() {
+  if (generatingPlan.value || busy.value || aiBusy.value) return;
+  if (!data.value.items.length)
+    return ElMessage.warning("当前暂无可用候选，请调整画像或筛选条件");
+  if (planner.items.length) {
+    try {
+      await ElMessageBox.confirm(
+        "按当前模式生成将替换当前草稿，已保存方案不会受影响。",
+        "生成新方案",
+        { confirmButtonText: "生成并替换", cancelButtonText: "取消" },
+      );
+    } catch {
+      return;
+    }
+  }
+  generatingPlan.value = true;
+  try {
+    const result = (
+      await api.generatePlan(matchCount.value, mode.value)
+    ).data;
+    if (!result.items.length)
+      return ElMessage.warning("当前画像暂无可用候选，请调整画像或浏览招生数据");
+    planner.replace([...result.items]);
+    if (result.missing_tiers?.length)
+      ElMessage.warning(
+        `当前样本缺少${result.missing_tiers.map((r) => riskLabels[r as keyof typeof riskLabels]).join("、")}梯度，请审慎调整`,
+      );
+    else
+      ElMessage.success(
+        `已按「${MODE_LABELS[mode.value]}」生成 ${result.items.length} 个志愿，可继续调整顺序`,
+      );
+    await router.push("/planner");
+  } catch {
+    /* API handles error */
+  } finally {
+    generatingPlan.value = false;
+  }
+}
 function show(group: Group) {
   detail.value = group;
   drawer.value = true;
 }
+function openMajor(name: string) {
+  majorName.value = name;
+  majorOpen.value = true;
+}
 onMounted(load);
-onBeforeUnmount(() => controller?.abort());
+onBeforeUnmount(() => {
+  controller?.abort();
+  if (diffTimer) clearTimeout(diffTimer);
+});
 </script>
 <template>
   <div class="page-heading">
@@ -196,6 +313,32 @@ onBeforeUnmount(() => controller?.abort());
         ><SlidersHorizontal :size="15" />调整画像</RouterLink
       >
     </section>
+    <ModeSwitch
+      :model-value="mode"
+      :weights="weights"
+      :budget="data.budget ?? null"
+      :loading="modeLoading || busy || aiBusy"
+      @update:model-value="switchMode"
+    >
+      <template #actions>
+        <el-button
+          :loading="generatingPlan"
+          :disabled="!data.items.length || busy || aiBusy"
+          @click="generateByMode"
+          ><ListOrdered :size="15" />按当前模式生成
+          {{ matchCount }} 个志愿</el-button
+        >
+      </template>
+    </ModeSwitch>
+    <DiffBar
+      v-if="compare && diffVisible"
+      :summary="compare.summary"
+      :a-label="compare.a.label"
+      :b-label="compare.b.label"
+      :delta="compare.diff.metric_delta"
+      :loading="compareLoading"
+      @open="compareOpen = true"
+    />
     <section class="panel ai-match-controls">
       <div>
         <h3>
@@ -208,7 +351,7 @@ onBeforeUnmount(() => controller?.abort());
         </p>
         <small
           >录取与计划为模拟样本；AI
-          不会添加库外院校，也不能修改录取数据。</small
+          不会添加库外院校，也不能修改录取数据。AI 精选不使用沙盘排序，「模式」只影响下方候选排序与「按当前模式生成」。</small
         >
       </div>
       <div class="ai-match-actions">
@@ -321,6 +464,7 @@ onBeforeUnmount(() => controller?.abort());
           :key="group.id"
           :group="group"
           @detail="show"
+          @major="openMajor"
         />
       </div>
       <el-empty
@@ -342,6 +486,12 @@ onBeforeUnmount(() => controller?.abort());
     }}
   </div>
   <GroupDrawer v-model="drawer" :group="detail" />
+  <CompareDrawer
+    v-model="compareOpen"
+    :compare="compare"
+    :loading="compareLoading"
+  />
+  <MajorCardDrawer v-model="majorOpen" :name="majorName" />
 </template>
 <style scoped>
 .ai-match-controls {
