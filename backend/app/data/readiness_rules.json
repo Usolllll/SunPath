@@ -1,0 +1,106 @@
+{
+  "version": "2026.11",
+  "physical": [
+    {
+      "condition": "color_weak",
+      "label": "色弱",
+      "level": "red",
+      "blocked_major_classes": ["化学类", "化工与制药类", "药学类", "生物科学类", "公安技术类", "地质学类", "医学类"],
+      "blocked_keywords": ["化学", "化工", "药学", "生物", "医学", "心理", "生态", "食品", "环境工程", "侦察", "考古", "海洋科学", "轮机工程", "学前教育", "体育教育", "农学", "林学", "园林", "动物医学"],
+      "source": "教学〔2003〕3号 第二部分第1条",
+      "source_url": "http://www.moe.gov.cn/srcsite/A15/moe_776/s3258/200303/t20030303_79883.html"
+    },
+    {
+      "condition": "color_blind",
+      "label": "色盲",
+      "level": "red",
+      "blocked_major_classes": ["化学类", "化工与制药类", "药学类", "生物科学类", "公安技术类", "地质学类", "医学类", "美术学类", "设计学类", "戏剧与影视学类", "地理科学类", "材料类", "交通运输类"],
+      "blocked_keywords": ["美术", "绘画", "艺术设计", "摄影", "动画", "博物馆", "应用物理", "天文", "地理科学", "应用气象", "材料物理", "矿物加工", "资源勘探", "冶金", "无机非金属", "交通运输", "油气储运", "化学", "药学", "生物", "医学"],
+      "source": "教学〔2003〕3号 第二部分第2条",
+      "source_url": "http://www.moe.gov.cn/srcsite/A15/moe_776/s3258/200303/t20030303_79883.html"
+    },
+    {
+      "condition": "naked_vision_lt_5_0",
+      "label": "裸眼视力任何一眼低于5.0",
+      "level": "red",
+      "blocked_major_classes": ["交通运输类", "公安技术类", "公安学类"],
+      "blocked_keywords": ["飞行技术", "航海技术", "消防工程", "刑事科学技术", "侦察", "海洋船舶驾驶", "民航空中交通管制"],
+      "source": "教学〔2003〕3号 第二部分第4条",
+      "source_url": "http://www.moe.gov.cn/srcsite/A15/moe_776/s3258/200303/t20030303_79883.html"
+    },
+    {
+      "condition": "corrected_vision_gt_400",
+      "label": "任何一眼矫正到4.8镜片度数大于400度",
+      "level": "yellow",
+      "blocked_major_classes": ["海洋科学类", "仪器类", "核工程类", "生物医学工程类", "纺织类", "航空航天类"],
+      "blocked_keywords": ["海洋技术", "海洋科学", "测控技术与仪器", "核工程与核技术", "生物医学工程", "服装设计与工程", "飞行器制造工程"],
+      "source": "教学〔2003〕3号 第三部分第4条",
+      "source_url": "http://www.moe.gov.cn/srcsite/A15/moe_776/s3258/200303/t20030303_79883.html"
+    },
+    {
+      "condition": "hbv_carrier",
+      "label": "乙型肝炎表面抗原携带",
+      "level": "red",
+      "blocked_major_classes": ["教育学类", "交通运输类"],
+      "blocked_keywords": ["学前教育", "航海技术", "飞行技术", "面点工艺", "西餐工艺", "烹饪", "食品科学与工程"],
+      "source": "教学〔2003〕3号 第二部分第6条",
+      "source_url": "http://www.moe.gov.cn/srcsite/A15/moe_776/s3258/200303/t20030303_79883.html"
+    },
+    {
+      "condition": "hearing_smell_abnormal",
+      "label": "听力受限或嗅觉迟钝、口吃",
+      "level": "yellow",
+      "blocked_major_classes": ["法学类", "外国语言文学类", "新闻传播学类", "教育学类", "公安学类", "音乐与舞蹈学类", "交通运输类", "动物医学类", "医学类"],
+      "blocked_keywords": ["法学", "外语", "外交学", "新闻学", "侦察", "学前教育", "音乐学", "录音艺术", "土木工程", "交通运输", "动物科学", "动物医学", "教育学", "公安学", "音乐表演", "表演", "医学"],
+      "source": "教学〔2003〕3号 第三部分第7、8、9条",
+      "source_url": "http://www.moe.gov.cn/srcsite/A15/moe_776/s3258/200303/t20030303_79883.html"
+    }
+  ],
+  "timeline": [
+    {
+      "type": "高考报名",
+      "window": "前一年10—11月，各省组织网上报名、资格审核与信息确认，具体时间以本省考试院公告为准",
+      "source": "教育部年度招生工作通知 / 省级教育考试院",
+      "source_url": "http://www.moe.gov.cn/srcsite/A15/moe_776/s3258/202601/t20260121_1427110.html"
+    },
+    {
+      "type": "强基计划",
+      "window": "每年4月发布简章并网上报名，4月底截止；6月高考后参加校考，7月初公布录取结果",
+      "source": "教育部/高校强基计划简章，阳光高考平台汇总",
+      "source_url": "https://gaokao.chsi.com.cn/gkxx/qjjh/202604/20260407/2293459502-7.html"
+    },
+    {
+      "type": "综合评价",
+      "window": "3—5月各校发布简章、提交报名材料并组织校测，时间逐校不同，须以当年简章为准",
+      "source": "阳光高考特殊类型招生信息服务平台 / 高校综评简章",
+      "source_url": "https://gaokao.chsi.com.cn/gkzt/tszs"
+    },
+    {
+      "type": "专项计划",
+      "window": "4月前后报名与资格审核（国家专项、地方专项、高校专项），要求户籍、学籍连续满3年等条件",
+      "source": "教育部年度招生工作通知 教学〔2026〕1号",
+      "source_url": "http://www.moe.gov.cn/srcsite/A15/moe_776/s3258/202601/t20260121_1427110.html"
+    },
+    {
+      "type": "志愿填报",
+      "window": "6月下旬公布成绩后至7月初，按省考试院安排分批次网上填报并确认，逾期不予补报",
+      "source": "省级教育考试院 / 教育部年度招生工作通知",
+      "source_url": "http://www.moe.gov.cn/srcsite/A15/moe_776/s3258/202601/t20260121_1427110.html"
+    },
+    {
+      "type": "录取",
+      "window": "7月上旬起分批次投档录取，结果由省级考试院与高校招生网公布，注意各批次征集志愿时间",
+      "source": "省级教育考试院 / 高校本科招生网",
+      "source_url": "http://www.moe.gov.cn/srcsite/A15/moe_776/s3258/202601/t20260121_1427110.html"
+    },
+    {
+      "type": "入学报到复查",
+      "window": "8月下旬至9月按录取通知书报到；入学后3个月内进行资格与体检复查，不合格可能调整专业或取消学籍",
+      "source": "《普通高等学校学生管理规定》（教育部令第41号）第八条、第十一条",
+      "source_url": "https://www.gov.cn/gongbao/content/2017/content_5220900.htm"
+    }
+  ],
+  "notes": {
+    "disclaimer": "仅供提示，不构成报考资格认定；最终以省考试院、高校招生章程与体检结论为准。"
+  }
+}

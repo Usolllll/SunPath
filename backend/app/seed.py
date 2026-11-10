@@ -3,7 +3,8 @@ from sqlalchemy import select, func
 from app.core.database import Base, engine, SessionLocal
 from app.core.config import get_settings
 from app.core.security import hash_password
-from app.models.entities import User, Profile, University, MajorGroup, Admission, Enrollment
+from app.models.entities import User, Profile, University, MajorGroup, Admission, Enrollment, MajorCatalog
+from app.services.enrichment import apply_group, apply_university, major_cards
 from app.schemas.dto import PROVINCES
 
 SCHOOLS = [
@@ -77,12 +78,14 @@ def seed():
                 continue
             university = University(name=name, city=city, region=region, level=level, category=category, initials=initials, color=color,
                                     description=f'{name}位于{city}。本原型提供该校两个模拟专业组，用于演示院校探索、选科匹配与志愿规划；不代表该校实际招生信息。')
+            apply_university(university)
             db.add(university)
             db.flush()
             for offset in range(2):
                 science = offset == 0
                 majors = (['计算机科学与技术', '软件工程', '人工智能'] if index % 3 else ['电子信息工程', '通信工程', '自动化']) if science else ['经济学', '工商管理', '新闻传播学']
                 group = MajorGroup(university_id=university.id, code=f'{index + 1:03d}-{offset + 1:02d}', name='理工与信息专业组' if science else '人文与经管专业组', majors=majors, required_subjects=['物理', '化学'] if science else [], tuition=6000 if science else 5300)
+                apply_group(group)
                 db.add(group)
                 db.flush()
                 for pi, province in enumerate(PROVINCES):
@@ -93,6 +96,15 @@ def seed():
                         score = max(440, min(710, round(708 - (rank ** .49) * .48 - pi * 2 + yi)))
                         db.add(Admission(group_id=group.id, province=province, year=year, min_score=score, min_rank=rank))
                     db.add(Enrollment(group_id=group.id, province=province, year=2026, count=12 + (index * 7 + offset * 3 + pi) % 48))
+        for name, card in major_cards().items():
+            if db.scalar(select(MajorCatalog).where(MajorCatalog.name == name)):
+                continue
+            db.add(MajorCatalog(
+                name=name, code=card.get('code'), category=card['category'], major_class=card.get('major_class'),
+                study_what=card['study_what'], fit_for=card['fit_for'], hard_where=card['hard_where'],
+                career_where=card['career_where'], riasec_main=card.get('riasec_main'),
+                riasec_secondary=card.get('riasec_secondary'), source=card.get('source', '自撰摘要'), as_of=card.get('as_of', '2026-11'),
+            ))
         settings = get_settings()
         if settings.demo_email and settings.demo_password and not db.scalar(select(User).where(User.email == settings.demo_email.lower())):
             if len(settings.demo_password) < 8:
@@ -101,8 +113,8 @@ def seed():
             user.profile = Profile(province='浙江', exam_year=2026, score=628, rank=22580, subjects=['物理', '化学', '生物'], regions=['浙江', '上海', '江苏'], majors=['计算机', '电子信息'])
             db.add(user)
         db.commit()
-        counts = [db.scalar(select(func.count()).select_from(model)) for model in (University, MajorGroup, Admission, Enrollment)]
-    print(f'Initialized: {counts[0]} universities, {counts[1]} groups, {counts[2]} admission records, {counts[3]} enrollment records. All admission data simulated.')
+        counts = [db.scalar(select(func.count()).select_from(model)) for model in (University, MajorGroup, Admission, Enrollment, MajorCatalog)]
+    print(f'Initialized: {counts[0]} universities, {counts[1]} groups, {counts[2]} admission records, {counts[3]} enrollment records, {counts[4]} major cards. All admission data simulated.')
 
 if __name__ == '__main__':
     seed()
