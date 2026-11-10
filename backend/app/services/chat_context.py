@@ -38,8 +38,19 @@ def available_context(db, user):
     }
 
 
+SAFE_PROFILE_KEYS = ('province', 'exam_year', 'score', 'rank', 'subjects', 'regions', 'majors')
+
+
+def safe_profile(value):
+    """只保留可进入 AI 上下文的画像字段；预算/体检/兴趣分不进模型。"""
+    data = profile_data(value)
+    if data is None:
+        return None
+    return {key: data.get(key) for key in SAFE_PROFILE_KEYS if key in data}
+
+
 def plan_data(plan, current_profile):
-    snapshot = profile_data(plan.profile_snapshot)
+    snapshot = safe_profile(plan.profile_snapshot)
     items = []
     for position, source in enumerate(plan.items, 1):
         university = source.get('university') if isinstance(source, dict) else None
@@ -63,7 +74,7 @@ def plan_data(plan, current_profile):
 
 
 def build_context(db, user, use_profile=True, use_saved_plans=True, plan_ids=None):
-    current = profile_data(user.profile) if use_profile else None
+    current = safe_profile(user.profile) if use_profile else None
     total = db.scalar(select(func.count()).select_from(Plan).where(Plan.user_id == user.id)) if use_saved_plans else 0
     selected = []
     requested = 0

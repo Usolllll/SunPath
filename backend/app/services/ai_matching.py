@@ -31,7 +31,7 @@ def selection_context(db, profile, count):
     groups = load_groups(db)
     if len(groups) > 500:
         raise HTTPException(413, '当前院校库超过单次匹配容量，请先缩小院校范围')
-    eligible = recommend(db, profile, groups=groups)
+    eligible = recommend(db, profile, groups=groups, mode=(getattr(profile, 'priority_mode', None) or 'balanced'))
     reference, _ = balanced_plan(eligible, count)
     quotas = {risk: sum(item['risk'] == risk for item in reference) for risk in RISKS}
     by_id = {item['id']: item for item in eligible}
@@ -48,7 +48,11 @@ def selection_context(db, profile, count):
         })
     target = min(count, len(eligible))
     context = {
-        'candidate_profile': profile.model_dump(), 'data_label': '全部录取与计划资料为模拟样本',
+        # 只提供模型选择所需的最小画像；预算/体检/兴趣分不进 AI 上下文
+        'candidate_profile': {key: profile.model_dump()[key] for key in
+                              ('province', 'exam_year', 'score', 'rank', 'subjects', 'regions', 'majors', 'priority_mode')
+                              if key in profile.model_dump()},
+        'data_label': '全部录取与计划资料为模拟样本',
         'limits': {'requested_count': count, 'required_count': target, 'minimum_count': min(3, len(eligible)), 'maximum_count': min(30, len(eligible))},
         'risk_quotas': quotas, 'eligible_group_ids': list(by_id), 'catalog': catalog,
         'eligible_buckets': {risk: {'required_count': quotas[risk], 'allowed_ids': [item['id'] for item in eligible if item['risk'] == risk]} for risk in RISKS},

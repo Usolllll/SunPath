@@ -36,6 +36,17 @@ class ProfileIn(BaseModel):
     subjects: list[str] = Field(min_length=3, max_length=3)
     regions: list[str] = Field(default_factory=list, max_length=10)
     majors: list[str] = Field(default_factory=list, max_length=10)
+    # v2 决策维度（全部可选，缺省不改变一期行为）
+    priority_mode: Literal['school', 'balanced', 'major'] = 'balanced'
+    interests: dict[str, int] | None = None
+    budget_total: int | None = Field(default=None, ge=0, le=2_000_000)
+    physical: dict[str, object] | None = None
+    intent_types: list[str] | None = None
+
+    @field_validator('priority_mode', mode='before')
+    @classmethod
+    def default_priority_mode(cls, v):
+        return 'balanced' if v is None else v
 
     @field_validator('subjects')
     @classmethod
@@ -50,6 +61,30 @@ class ProfileIn(BaseModel):
         if any(not s.strip() or len(s) > 30 for s in v):
             raise ValueError('偏好名称应为 1–30 个字符')
         return list(dict.fromkeys(s.strip() for s in v))
+
+    @field_validator('interests')
+    @classmethod
+    def valid_interests(cls, v):
+        if v is None:
+            return None
+        allowed = {'R', 'I', 'A', 'S', 'E', 'C'}
+        if set(v) - allowed:
+            raise ValueError('兴趣维度只能是 RIASEC 六型')
+        result = {}
+        for key in allowed:
+            value = v.get(key, 0)
+            if not 0 <= value <= 100:
+                raise ValueError('兴趣分应在 0–100 之间')
+            result[key] = int(value)
+        return result
+
+    @field_validator('physical')
+    @classmethod
+    def valid_physical(cls, v):
+        if v is None:
+            return None
+        allowed = {'color_weak', 'color_blind', 'naked_vision', 'corrected_vision', 'hearing', 'smell', 'hbsag'}
+        return {key: value for key, value in v.items() if key in allowed}
 
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
