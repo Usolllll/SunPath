@@ -5,7 +5,7 @@ from app.core.database import get_db
 from app.core.security import current_user
 from app.models.entities import User, University, Plan, MajorCatalog
 from app.schemas.dto import PROVINCES, SUBJECTS
-from app.services import budget, enrichment, readiness as readiness_service, scoring
+from app.services import budget, enrichment, readiness as readiness_service, real_data, scoring
 from app.services.catalog import load_groups, serialize_group, DISCLAIMER, require_profile
 from app.services.recommender import recommend, balanced_plan, ENGINE_VERSION
 from app.schemas.matching import AIMatchIn
@@ -64,7 +64,7 @@ def detail(group_id: int, province: str = '浙江', year: int = Query(2026, ge=2
 def recommendations(mode: str | None = Query(None, pattern=MODE_PATTERN), budget_cap: int | None = Query(None, ge=0, le=2_000_000), user: User = Depends(current_user), db: Session = Depends(get_db)):
     profile = require_profile(user)
     active_mode = effective_mode(profile, mode)
-    items = recommend(db, profile, mode=active_mode, budget_cap=budget_cap)
+    items = real_data.attach_official(db, recommend(db, profile, mode=active_mode, budget_cap=budget_cap), profile.province)
     counts = {risk: sum(x['risk'] == risk for x in items) for risk in ['reach', 'steady', 'safe']}
     return {
         'items': items, 'counts': counts, 'disclaimer': DISCLAIMER, 'engine_version': ENGINE_VERSION,
@@ -83,6 +83,8 @@ def compare(mode_a: str = Query('school', pattern=MODE_PATTERN), mode_b: str = Q
     pool_b = recommend(db, profile, groups=groups, mode=mode_b)
     items_a, missing_a = balanced_plan(pool_a, count)
     items_b, missing_b = balanced_plan(pool_b, count)
+    real_data.attach_official(db, items_a, profile.province)
+    real_data.attach_official(db, items_b, profile.province)
     diff = scoring.diff_plans(items_a, items_b)
     return {
         'a': {'mode': mode_a, 'label': scoring.MODE_LABELS.get(mode_a, mode_a), 'items': items_a, 'missing_tiers': missing_a},
@@ -98,6 +100,7 @@ def generate(count: int = Query(12, ge=3, le=30), mode: str | None = Query(None,
     profile = require_profile(user)
     active_mode = effective_mode(profile, mode)
     selected, missing = balanced_plan(recommend(db, profile, mode=active_mode), count)
+    real_data.attach_official(db, selected, profile.province)
     return {
         'items': selected, 'missing_tiers': missing, 'mode': active_mode, 'weights': scoring.weights(active_mode),
         'budget': budget.budget_summary(selected, getattr(profile, 'budget_total', None)),
@@ -170,3 +173,34 @@ def budget_estimate(group_id: int = Query(...), user: User = Depends(current_use
             'over_budget': bool(budget_total and cost['total'] > budget_total),
             'over_by': max(0, cost['total'] - budget_total) if budget_total else 0,
             'disclaimer': '生活费为按城市等级的估算值（非官方数据）；学费/住宿费来自采集字段，正式填报请以招生章程为准。'}
+
+# ---------------------------------------------------------------- 真实投档数据（官方来源，只读）
+REAL_PROVINCES = ['辽宁', '贵州', '黑龙江']
+
+
+@router.get('/real-data/summary')
+def real_data_summary(db: Session = Depends(get_db)):
+    """真实投档数据覆盖情况：省份、行数、年份、当前数据版本（含来源与发布时间）。"""
+    return real_data.summary(db)
+
+
+@router.get('/real-data/rows')
+def real_data_rows(province: str = Query(...), year: int | None = Query(None, ge=2020, le=2030),
+                   q: str = Query('', max_length=40), page: int = Query(1, ge=1),
+                   page_size: int = Query(50, ge=1, le=200), db: Session = Depends(get_db)):
+    if province not in REAL_PROVINCES:
+        raise HTTPException(422, '该省的官方投档数据尚未收录')
+    return real_data.list_rows(db, province, year, q, page, page_size)
+
+
+@router.get('/real-data/school')
+def real_data_school(name: str = Query(..., min_length=1, max_length=80), province: str = Query(...),
+                     db: Session = Depends(get_db)):
+    if province not in REAL_PROVINCES:
+        raise HTTPException(422, '该省的官方投档数据尚未收录')
+    official = real_data.school_official(db, name, province)
+    if not official:
+        raise HTTPException(404, '该院校在本库真实数据中暂无记录')
+    rows = real_data.list_rows(db, province, official['exam_year'], name, 1, 20)
+    return {'school_name': name, 'official': official, 'recent_rows': rows['items'],
+            'disclaimer': '真实投档线仅作核对参考，不等于录取线，也不代表今年录取结果。'}

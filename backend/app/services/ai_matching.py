@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from app.schemas.dto import ProfileIn
 from app.schemas.matching import AISelection, AIMatchIn
-from app.services import llm
+from app.services import llm, real_data
 from app.services.catalog import load_groups, serialize_group, DISCLAIMER
 from app.services.recommender import recommend, balanced_plan
 
@@ -103,6 +103,7 @@ async def match_universities(db, profile, count=12):
     else:
         selected, model_label = [], None
     counts = {risk: sum(item['risk'] == risk for item in selected) for risk in RISKS}
+    real_data.attach_official(db, selected, profile.province)
     below_minimum = len(selected) < 3
     return {
         'items': selected, 'counts': counts, 'disclaimer': DISCLAIMER, 'engine_version': ENGINE_VERSION,
