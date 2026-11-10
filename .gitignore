@@ -13,5 +13,6 @@ backend/*.db
 backend/*.db-*
 output/
 .playwright-cli/
+backend/backups/
 *.log
 .DS_Store
