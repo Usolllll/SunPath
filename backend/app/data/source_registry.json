@@ -1,0 +1,89 @@
+{
+  "_meta": {
+    "purpose": "官方数据源巡检登记表：只登记实测可访问的公开源；禁止绕过反爬、遵守 robots。",
+    "as_of": "2026-11-10",
+    "rate_limit": "串行，间隔 1.5s（约 0.5 QPS）"
+  },
+  "sources": [
+    {
+      "id": "MOE-LIST",
+      "dataset": "全国高等学校名单",
+      "province": null,
+      "url": "http://www.moe.gov.cn/jyb_xxgk/s5743/s5744/202606/t20260618_1441074.html",
+      "method": "GET",
+      "automation": "auto",
+      "update_window": "每年 6 月中下旬",
+      "notes": "教育部公告页；附件 xls 可下载解析"
+    },
+    {
+      "id": "SD-ZK",
+      "dataset": "山东投档线",
+      "province": "山东",
+      "url": "https://www.sdzk.cn/NewsList.aspx",
+      "method": "GET",
+      "automation": "auto",
+      "update_window": "每年 7 月底–8 月",
+      "notes": "页脚声明未经授权不得转载原表；只做内部聚合与来源标注"
+    },
+    {
+      "id": "LN-ZK",
+      "dataset": "辽宁投档线",
+      "province": "辽宁",
+      "url": "https://www.lnzsks.com/ptgk.html",
+      "method": "GET",
+      "automation": "auto",
+      "update_window": "每年 7–8 月",
+      "notes": "附件 xlsx；无 robots"
+    },
+    {
+      "id": "GZ-ZK",
+      "dataset": "贵州投档线",
+      "province": "贵州",
+      "url": "http://zsksy.guizhou.gov.cn/ygpt/tdqk/",
+      "method": "GET",
+      "automation": "auto",
+      "update_window": "每年 7–8 月",
+      "notes": "HTML 正文公告"
+    },
+    {
+      "id": "GD-XK",
+      "dataset": "广东选科要求",
+      "province": "广东",
+      "url": "https://www.eeagd.edu.cn/xkcx2027/",
+      "method": "GET",
+      "automation": "auto",
+      "update_window": "滚动发布，按年更新",
+      "notes": "JSON 接口可查；无登录无 JS"
+    },
+    {
+      "id": "ZJ-ZK",
+      "dataset": "浙江投档线",
+      "province": "浙江",
+      "url": "https://www.zjzs.net/col/col155/index.html",
+      "method": "GET",
+      "automation": "auto",
+      "update_window": "每年 7 月中下旬",
+      "notes": "列表页 AJAX 分页，必要时人工复核"
+    },
+    {
+      "id": "HLJ-ZK",
+      "dataset": "黑龙江投档线/一分段",
+      "province": "黑龙江",
+      "url": "https://www.lzk.hl.cn/",
+      "method": "GET",
+      "automation": "manual",
+      "update_window": "每年 6 月 24 日前后",
+      "notes": "robots 全站 Disallow:/ —— 只允许人工下载导入，禁止自动抓取"
+    },
+    {
+      "id": "CHSI",
+      "dataset": "阳光高考（专业库/章程/阳光志愿）",
+      "province": null,
+      "url": "https://gaokao.chsi.com.cn/",
+      "method": "GET",
+      "automation": "manual",
+      "update_window": "每年 4–7 月",
+      "notes": "全站 412（瑞数动态防护）；不纳入自动化，只做外链核验"
+    }
+  ]
+}

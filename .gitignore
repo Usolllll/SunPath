@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 dist/
 *.tsbuildinfo
 .venv/
@@ -14,5 +14,8 @@ backend/*.db-*
 output/
 .playwright-cli/
 backend/backups/
+backend/state/
+backend/reports/
 *.log
 .DS_Store
+
