@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ArrowUpRight, BookOpen, MapPin, Plus, Check } from "lucide-vue-next";
+import {
+  ArrowUpRight,
+  BookOpen,
+  MapPin,
+  Plus,
+  Check,
+  ShieldCheck,
+} from "lucide-vue-next";
 import type { Group } from "../api/types";
 import RiskBadge from "./RiskBadge.vue";
 import { number } from "../utils/format";
+import { officialCheckText, safeSourceUrl } from "../utils/realdata";
 import {
   cityTierLabel,
   overBudgetText,
@@ -30,6 +38,10 @@ const score = computed(() =>
   props.group.total_score == null ? null : props.group.total_score.toFixed(1),
 );
 const costYear = computed(() => props.group.cost_year ?? props.group.year);
+/** 官方真实投档核对：official 为 null（如演示账号浙江）属正常缺数据，只低调提示，不报错 */
+const official = computed(() => props.group.official ?? null);
+const officialText = computed(() => officialCheckText(official.value));
+const officialUrl = computed(() => safeSourceUrl(official.value?.source_url));
 </script>
 <template>
   <article class="school-card">
@@ -93,6 +105,28 @@ const costYear = computed(() => props.group.cost_year ?? props.group.year);
         ><strong>{{ wan(costTotal) }}</strong>
       </div>
     </div>
+    <div class="official-check" :class="{ missing: !official }">
+      <template v-if="official">
+        <span class="official-tag"><ShieldCheck :size="10" />官方核对</span>
+        <span class="official-text">{{ officialText }}</span>
+        <a
+          v-if="officialUrl"
+          class="official-link"
+          :href="officialUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          :title="`来源公告发布于 ${official.published_at || '未标注'}，真实投档线不等于录取线`"
+          >来源 ↗</a
+        >
+        <span v-else class="official-text muted">来源链接未收录</span>
+      </template>
+      <template v-else>
+        <span class="official-tag muted">官方数据未收录</span>
+        <span class="official-text"
+          >{{ group.province }}官方投档数据尚未入库，上方参考位次来自模拟样本</span
+        >
+      </template>
+    </div>
     <div class="school-cost-row">
       <span v-if="overText" class="cost-over">{{ overText }}</span>
       <span v-else-if="budget" class="cost-ok">在家庭预算内</span>
@@ -135,3 +169,54 @@ const costYear = computed(() => props.group.cost_year ?? props.group.year);
     </div>
   </article>
 </template>
+
+<style scoped>
+.official-check {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 11px;
+  padding: 7px 9px;
+  border: 1px solid #dfeee5;
+  background: #f6faf7;
+  border-radius: 6px;
+  font-size: 10px;
+  color: #5f7d6b;
+  line-height: 1.6;
+}
+.official-check.missing {
+  border-color: #e9eef6;
+  background: #f7f9fc;
+  color: #93a1b3;
+}
+.official-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  font-size: 9px;
+  color: #4a7f63;
+  background: #e9f4ee;
+  border-radius: 3px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+.official-tag.muted {
+  color: #8593a7;
+  background: #eff2f7;
+}
+.official-text {
+  flex: 1;
+  min-width: 120px;
+}
+.official-link {
+  color: #4f7fbe;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.official-link:hover {
+  color: #2f5fa3;
+  text-decoration: underline;
+}
+</style>

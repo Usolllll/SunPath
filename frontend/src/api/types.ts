@@ -35,6 +35,73 @@ export interface User {
   profile: Profile | null;
 }
 export type Risk = "reach" | "steady" | "safe";
+/**
+ * 官方真实投档核对信息（来自省考试院公开投档文件）。
+ * 推荐结果为模拟样本时 official 为 null 属正常情况，界面只低调提示"官方数据未收录"，不报错、不推测。
+ */
+export interface OfficialCheck {
+  exam_year: number;
+  subject_type?: string | null;
+  group_name?: string | null;
+  major_name?: string | null;
+  min_score?: number | null;
+  min_rank?: number | null;
+  source_url?: string | null;
+  published_at?: string | null;
+  data_label?: string;
+}
+/** 官方数据版本（每省每次导入一个版本，含公告来源与哈希校验记录） */
+export interface RealDataVersion {
+  dataset: string;
+  row_count: number | null;
+  published_at: string | null;
+  source_url: string | null;
+  fetched_at: string | null;
+  doc_status: string | null;
+}
+export interface RealDataProvinceSummary {
+  province: string;
+  rows: number;
+  schools: number;
+  years: number[];
+  published_at: string | null;
+  versions: RealDataVersion[];
+}
+/** GET /real-data/summary：官方真实投档数据新鲜度 */
+export interface RealDataSummary {
+  total_rows: number;
+  provinces: RealDataProvinceSummary[];
+  note: string;
+  disclaimer: string;
+}
+/** GET /real-data/rows：官方真实投档明细（真实数据，与模拟样本库物理隔离） */
+export interface RealDataRow {
+  id: number;
+  school_name: string;
+  exam_year: number;
+  subject_type: string | null;
+  batch: string | null;
+  round_no: string | null;
+  group_name: string | null;
+  major_name: string | null;
+  min_score: number | null;
+  min_rank: number | null;
+  required_subjects: string | null;
+  source_url: string | null;
+  published_at: string | null;
+}
+export interface RealDataRows {
+  total: number;
+  items: RealDataRow[];
+  note?: string;
+}
+/** GET /real-data/school：单校官方投档核对 */
+export interface RealDataSchool {
+  school_name: string;
+  official: OfficialCheck | null;
+  recent_rows: RealDataRow[];
+  disclaimer: string;
+}
 export interface University {
   id: number;
   name: string;
@@ -100,6 +167,8 @@ export interface Group {
   transfer_bonus?: number | null;
   total_score?: number | null;
   weights?: Weights | null;
+  /** 官方真实投档核对；未收录（如演示账号浙江）为 null，属正常情况 */
+  official?: OfficialCheck | null;
 }
 export interface Plan {
   id: number;

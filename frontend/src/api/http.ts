@@ -19,6 +19,11 @@ http.interceptors.response.use(
       error.response?.status === 404 &&
       (error.config?.url || "").startsWith("/majors/");
     if (missingMajorCard) return Promise.reject(error);
+    // 官方真实投档未收录省份属于正常缺数据，由「官方真实投档」页内展示“该省官方数据尚未收录”，不弹全局错误
+    const missingRealData =
+      error.response?.status === 422 &&
+      (error.config?.url || "").startsWith("/real-data/");
+    if (missingRealData) return Promise.reject(error);
     const detail = error.response?.data?.detail;
     const missingAiRoute =
       error.response?.status === 404 &&

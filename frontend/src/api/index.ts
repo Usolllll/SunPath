@@ -17,6 +17,9 @@ import type {
   ChatMessage,
   ChatReply,
   ChatAvailableContext,
+  RealDataSummary,
+  RealDataRows,
+  RealDataSchool,
 } from "./types";
 export const api = {
   chatConfig: () =>
@@ -93,6 +96,24 @@ export const api = {
     http.get<Catalog>("/catalog", { params }),
   catalogDetail: (id: number, params: Record<string, unknown>) =>
     http.get<Group>(`/catalog/${id}`, { params }),
+  /** 官方真实投档数据：覆盖省份、行数、公告发布时间与来源（需登录） */
+  realDataSummary: () => http.get<RealDataSummary>("/real-data/summary"),
+  /**
+   * 官方真实投档明细（服务端分页，单省 14 万条量级，勿全量拉取）。
+   * province 仅支持 辽宁 / 贵州 / 黑龙江；其他省份后端返回 422（该省官方数据尚未收录）。
+   */
+  realDataRows: (params: {
+    province: string;
+    year?: number | null;
+    q?: string;
+    page?: number;
+    page_size?: number;
+  }) => http.get<RealDataRows>("/real-data/rows", { params }),
+  /** 单校官方投档核对（最近一年 + 近 20 条记录） */
+  realDataSchool: (name: string, province: string) =>
+    http.get<RealDataSchool>("/real-data/school", {
+      params: { name, province },
+    }),
   overview: () =>
     http.get<{
       universities: number;

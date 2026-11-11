@@ -8,6 +8,7 @@ import {
   Check,
   Info,
   ListOrdered,
+  ShieldCheck,
 } from "lucide-vue-next";
 import { ElMessage } from "element-plus/es/components/message/index";
 import { ElMessageBox } from "element-plus/es/components/message-box/index";
@@ -16,6 +17,7 @@ import { api } from "../api";
 import type {
   Group,
   PriorityMode,
+  RealDataSummary,
   Recommendation,
   RecommendationCompare,
   Weights,
@@ -259,7 +261,23 @@ function openMajor(name: string) {
   majorName.value = name;
   majorOpen.value = true;
 }
-onMounted(load);
+/** P1：数据说明里的官方真实投档覆盖提示（失败时静默隐藏，不打扰主流程） */
+const officialSummary = ref<RealDataSummary | null>(null);
+const officialProvinces = computed(
+  () => officialSummary.value?.provinces.map((item) => item.province) ?? [],
+);
+async function loadOfficialCoverage() {
+  if (!auth.user?.profile) return;
+  try {
+    officialSummary.value = (await api.realDataSummary()).data;
+  } catch {
+    officialSummary.value = null;
+  }
+}
+onMounted(() => {
+  void load();
+  void loadOfficialCoverage();
+});
 onBeforeUnmount(() => {
   controller?.abort();
   if (diffTimer) clearTimeout(diffTimer);
@@ -290,6 +308,16 @@ onBeforeUnmount(() => {
       "
       @click="generate"
       ><Sparkles :size="17" />生成志愿方案</el-button
+    >
+  </div>
+  <div v-if="officialSummary && officialProvinces.length" class="official-coverage">
+    <ShieldCheck :size="14" />
+    <span
+      >官方真实投档数据已收录 {{ officialProvinces.join(" / ") }}，共
+      {{ number(officialSummary.total_rows) }} 条；推荐卡片上的「官方核对」即与该库比对。</span
+    >
+    <RouterLink to="/data?tab=realdata" class="official-coverage-link"
+      >去招生数据中心核对 ↗</RouterLink
     >
   </div>
   <template v-if="auth.user?.profile"
@@ -547,6 +575,32 @@ onBeforeUnmount(() => {
 .ai-match-result .text-button {
   margin-top: 7px;
   font-size: 10px;
+}
+.official-coverage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding: 9px 13px;
+  border: 1px solid #dfeee5;
+  background: #f6faf7;
+  border-radius: 8px;
+  font-size: 10px;
+  color: #5f7d6b;
+}
+.official-coverage > svg {
+  color: #4a7f63;
+  flex-shrink: 0;
+}
+.official-coverage-link {
+  margin-left: auto;
+  color: #4f7fbe;
+  white-space: nowrap;
+}
+.official-coverage-link:hover {
+  color: #2f5fa3;
+  text-decoration: underline;
 }
 @media (max-width: 1250px) {
   .ai-match-controls {

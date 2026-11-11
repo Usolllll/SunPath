@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { BookOpen, Info, Repeat2 } from "lucide-vue-next";
+import { BookOpen, Info, Repeat2, ShieldCheck } from "lucide-vue-next";
 import type { BudgetEstimate, Group } from "../api/types";
 import TrendChart from "./TrendChart.vue";
 import RiskBadge from "./RiskBadge.vue";
@@ -18,6 +18,7 @@ import {
   yuan,
 } from "../utils/decision";
 import { api } from "../api";
+import { officialCheckText, safeSourceUrl } from "../utils/realdata";
 const props = defineProps<{ group: Group | null }>();
 const open = defineModel<boolean>({ required: true });
 const planner = usePlanner();
@@ -38,6 +39,10 @@ const overBy = computed(() => {
 const transfer = computed(() =>
   transferStars(props.group?.university.transfer_friendly),
 );
+/** 官方真实投档核对；official 为 null（如演示账号浙江）属正常缺数据，低调提示即可 */
+const official = computed(() => props.group?.official ?? null);
+const officialText = computed(() => officialCheckText(official.value));
+const officialUrl = computed(() => safeSourceUrl(official.value?.source_url));
 const tierTags = computed(() => {
   const university = props.group?.university;
   if (!university) return [];
@@ -96,6 +101,35 @@ watch(
       <p>{{ group.university.description }}</p>
       <div class="notice compact">
         模拟数据 · {{ group.province }}生源 · {{ group.year }} 年方案参考
+      </div>
+      <div class="official-block" :class="{ missing: !official }">
+        <div class="official-block-head">
+          <ShieldCheck :size="14" />
+          <strong>官方核对</strong>
+          <span v-if="official" class="official-block-tag">官方投档数据</span>
+          <span v-else class="official-block-tag muted">官方数据未收录</span>
+        </div>
+        <template v-if="official">
+          <p class="official-block-line">{{ officialText }}</p>
+          <p class="official-block-meta">
+            投档最低分 {{ official.min_score ?? "未收录" }} · 公告发布
+            {{ official.published_at || "未标注" }}
+            <a
+              v-if="officialUrl"
+              :href="officialUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              >来源公告 ↗</a
+            >
+            <span v-else class="muted">（来源链接未收录）</span>
+          </p>
+          <p class="official-block-note">
+            真实投档线不等于录取线，不代表今年录取结果；仅作核对参考，正式填报以省考试院当年公布为准。
+          </p>
+        </template>
+        <p v-else class="official-block-line muted">
+          {{ group.province }} 的官方投档数据尚未入库，本页位次与分数参考来自模拟样本，未做任何推测。
+        </p>
       </div>
       <h3>
         {{ group.name }} <span class="muted">{{ group.code }}</span>
@@ -249,3 +283,71 @@ watch(
   >
   <MajorCardDrawer v-model="majorOpen" :name="majorName" />
 </template>
+
+<style scoped>
+.official-block {
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid #dfeee5;
+  background: #f6faf7;
+  border-radius: 8px;
+  font-size: 11px;
+  color: #5f7d6b;
+  line-height: 1.8;
+}
+.official-block.missing {
+  border-color: #e9eef6;
+  background: #f7f9fc;
+  color: #93a1b3;
+}
+.official-block-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #4a7f63;
+}
+.official-block.missing .official-block-head {
+  color: #8593a7;
+}
+.official-block-head strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.official-block-tag {
+  font-size: 9px;
+  color: #4a7f63;
+  background: #e9f4ee;
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+.official-block-tag.muted {
+  color: #8593a7;
+  background: #eff2f7;
+}
+.official-block-line {
+  margin-top: 6px;
+  color: #47664f;
+  font-weight: 500;
+}
+.official-block.missing .official-block-line {
+  color: #93a1b3;
+  font-weight: 400;
+}
+.official-block-meta {
+  margin-top: 2px;
+  font-size: 10px;
+  color: #8fa08f;
+}
+.official-block-meta a {
+  color: #4f7fbe;
+  margin-left: 6px;
+}
+.official-block-meta a:hover {
+  text-decoration: underline;
+}
+.official-block-note {
+  margin-top: 5px;
+  font-size: 10px;
+  color: #9aa8a0;
+}
+</style>

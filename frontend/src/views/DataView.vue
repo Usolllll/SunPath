@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch, nextTick } from "vue";
+import { useRoute } from "vue-router";
 import {
   Search,
   RotateCcw,
@@ -13,9 +14,11 @@ import { api } from "../api";
 import { useAuth } from "../stores/auth";
 import GroupDrawer from "../components/GroupDrawer.vue";
 import UniversityMap from "../components/UniversityMap.vue";
+import RealDataPanel from "../components/RealDataPanel.vue";
 import { number } from "../utils/format";
 const auth = useAuth();
-const tab = ref("schools");
+const route = useRoute();
+const tab = ref(route.query.tab === "realdata" ? "realdata" : "schools");
 const items = ref<Group[]>([]);
 const total = ref(0);
 const regions = ref<string[]>([]);
@@ -117,9 +120,12 @@ async function openSchool(school: CatalogUniversity) {
 watch(tab, () => {
   filters.page = 1;
   schoolPage.value = 1;
-  void load();
+  // 「官方真实投档」页签使用独立的真实数据面板，不触发模拟样本库查询
+  if (tab.value !== "realdata") void load();
 });
-onMounted(() => load());
+onMounted(() => {
+  if (tab.value !== "realdata") void load();
+});
 </script>
 <template>
   <div class="page-heading">
@@ -129,7 +135,7 @@ onMounted(() => load());
       <p>从地图发现心仪院校，将每一次探索落在真实的地理位置上。</p>
     </div>
     <span class="data-source-pill"
-      ><Database :size="14" />模拟样本库 · 2026</span
+      ><Database :size="14" />模拟样本库 + 官方投档数据 · 2026</span
     >
   </div>
   <section class="panel data-panel">
@@ -140,6 +146,7 @@ onMounted(() => load());
           { id: 'majors', label: '专业信息' },
           { id: 'scores', label: '历年录取' },
           { id: 'enrollment', label: '招生计划' },
+          { id: 'realdata', label: '官方真实投档' },
         ]"
         :key="t.id"
         :class="{ active: tab === t.id }"
@@ -148,6 +155,8 @@ onMounted(() => load());
         {{ t.label }}
       </button>
     </div>
+    <RealDataPanel v-if="tab === 'realdata'" />
+    <template v-else>
     <form class="filter-toolbar" @submit.prevent="load(true)">
       <el-input
         v-model="filters.q"
@@ -394,10 +403,11 @@ onMounted(() => load());
         </div>
       </div>
     </div>
+    </template>
   </section>
-  <div class="data-disclaimer">
-    <Info :size="15" />本库不含真实招生数据。2027
-    年暂无模拟计划；正式填报请查阅省考试院和高校招生章程。
+  <div v-if="tab !== 'realdata'" class="data-disclaimer">
+    <Info :size="15" />「高校信息 / 专业信息 / 历年录取 / 招生计划」为模拟样本库，不含真实招生数据，仅供产品演示；2027
+    年暂无模拟计划。官方真实投档数据见「官方真实投档」页签，正式填报请查阅省考试院和高校招生章程。
   </div>
   <GroupDrawer v-model="drawer" :group="detail" />
 </template>
