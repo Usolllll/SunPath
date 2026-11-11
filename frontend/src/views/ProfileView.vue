@@ -11,11 +11,12 @@ import {
   Wallet,
   Stethoscope,
   Info,
+  Gauge,
 } from "lucide-vue-next";
 import { ElMessage } from "element-plus/es/components/message/index";
 import { api } from "../api";
 import { useAuth } from "../stores/auth";
-import type { PriorityMode, Profile } from "../api/types";
+import type { PriorityMode, Profile, ProfileCompleteness } from "../api/types";
 import CoverageCard from "../components/CoverageCard.vue";
 import InterestRadar from "../components/InterestRadar.vue";
 import {
@@ -84,12 +85,42 @@ const policy = computed(() => MODE_WEIGHTS[priorityMode.value]);
 const coverageKey = computed(() =>
   JSON.stringify(auth.user?.profile?.subjects ?? []),
 );
+// P1：画像完整度（/ops/profile-completeness）——只展示进度与待补充项，不强制填写
+const completeness = ref<ProfileCompleteness | null>(null);
+const FIELD_LABELS: Record<string, string> = {
+  province: "生源省份",
+  exam_year: "考试年份",
+  score: "高考总分",
+  rank: "全省位次",
+  subjects: "选考科目",
+  regions: "目标地区",
+  majors: "专业兴趣",
+  priority_mode: "决策偏好",
+  interests: "兴趣测评",
+  budget_total: "家庭预算",
+  physical: "体检信息",
+};
+const missingLabels = computed(() =>
+  (completeness.value?.missing ?? []).map(
+    (field) => FIELD_LABELS[field] ?? field,
+  ),
+);
+const filledCount = computed(() => completeness.value?.filled.length ?? 0);
+async function loadCompleteness() {
+  if (!auth.user?.profile) return;
+  try {
+    completeness.value = (await api.profileCompleteness()).data;
+  } catch {
+    completeness.value = null;
+  }
+}
 onMounted(async () => {
   try {
     targetRegions.value = (await api.meta()).data.regions;
   } catch {
     /* API handles error */
   }
+  void loadCompleteness();
 });
 const complete = computed(() => form.subjects.length === 3 && form.rank > 0);
 watch(priorityMode, (value) => {
@@ -117,6 +148,7 @@ async function save() {
   try {
     auth.user = (await api.profile(form)).data;
     ElMessage.success("考生画像已保存，推荐将按最新画像计算");
+    void loadCompleteness();
   } catch {
     /* API handles error */
   } finally {
@@ -338,6 +370,31 @@ async function save() {
         /></RouterLink>
       </div>
       <CoverageCard :profile-key="coverageKey" />
+      <div v-if="completeness" class="panel completeness-card">
+        <div class="completeness-head">
+          <h3><Gauge :size="16" />画像完整度</h3>
+          <strong>{{ completeness.score }}<small>%</small></strong>
+        </div>
+        <div
+          class="completeness-bar"
+          role="progressbar"
+          :aria-valuenow="completeness.score"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          :aria-label="`考生画像完整度 ${completeness.score}%`"
+        >
+          <span :style="{ width: `${Math.max(0, Math.min(100, completeness.score))}%` }"></span>
+        </div>
+        <p class="completeness-meta">
+          已填写 {{ filledCount }} 项 · 待补充 {{ missingLabels.length }} 项
+        </p>
+        <p v-if="missingLabels.length" class="completeness-missing">
+          待补充：{{ missingLabels.join("、") }}
+        </p>
+        <p v-else class="completeness-missing">
+          画像信息已较完整，可随时调整；完整度只影响提示，不限制使用。
+        </p>
+      </div>
       <div class="notice">
         <strong>关于模拟数据</strong>
         <p>
@@ -353,3 +410,61 @@ async function save() {
   </div>
   <InterestRadar v-model="interests" />
 </template>
+
+<style scoped>
+.completeness-card {
+  padding: 17px 18px;
+  margin-top: 16px;
+}
+.completeness-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.completeness-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #46618a;
+}
+.completeness-head h3 > svg {
+  color: #6c8fc6;
+}
+.completeness-head strong {
+  font-size: 20px;
+  font-weight: 550;
+  color: #4a6284;
+}
+.completeness-head strong small {
+  font-size: 10px;
+  font-weight: 400;
+  color: #9aa8ba;
+  margin-left: 1px;
+}
+.completeness-bar {
+  height: 6px;
+  border-radius: 6px;
+  background: #eef2f8;
+  overflow: hidden;
+  margin: 11px 0 9px;
+}
+.completeness-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #6c93c9, #4f7fbe);
+  transition: width 0.4s ease;
+}
+.completeness-meta {
+  font-size: 9px;
+  color: #98a4b5;
+}
+.completeness-missing {
+  font-size: 10px;
+  color: #8c9db4;
+  line-height: 1.7;
+  margin-top: 5px;
+}
+</style>

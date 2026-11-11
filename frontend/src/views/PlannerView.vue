@@ -12,6 +12,9 @@ import {
   Download,
   FilePlus2,
   Wallet,
+  Send,
+  Undo2,
+  Lock,
 } from "lucide-vue-next";
 import { ElMessage } from "element-plus/es/components/message/index";
 import { ElMessageBox } from "element-plus/es/components/message-box/index";
@@ -19,8 +22,19 @@ import { useRouter } from "vue-router";
 import { usePlanner } from "../stores/planner";
 import { useAuth } from "../stores/auth";
 import { api } from "../api";
-import { number, riskLabels, exportPlan } from "../utils/format";
+import { number, riskLabels, exportPlan, date } from "../utils/format";
 import { overBudgetText, wan } from "../utils/decision";
+import {
+  PLAN_BATCHES,
+  SUBMIT_LOCK_MESSAGE,
+  clearedSubmitKey,
+  idempotencySignature,
+  isPlanEditable,
+  isValidSubmitKey,
+  planStatusLabel,
+  submitKeyFor,
+  type SubmitKeyState,
+} from "../utils/rtm";
 import RiskBadge from "../components/RiskBadge.vue";
 import GroupDrawer from "../components/GroupDrawer.vue";
 import type { Group } from "../api/types";
@@ -32,8 +46,18 @@ const saveAs = ref(false);
 const saveDialog = ref(false);
 const exporting = ref(false);
 const costing = ref(false);
+const submitting = ref(false);
+const withdrawing = ref(false);
+const syncing = ref(false);
 const detail = ref<Group | null>(null);
 const drawer = ref(false);
+// RTM：草稿可编辑；已提交需先撤回，提交请求复用同一 Idempotency-Key
+const editable = computed(() => isPlanEditable(planner.status));
+const statusText = computed(() => planStatusLabel(planner.status));
+const submittedText = computed(() =>
+  planner.submittedAt ? date(planner.submittedAt) : "未记录",
+);
+let submitKeyState: SubmitKeyState = clearedSubmitKey();
 const counts = computed(() =>
   Object.fromEntries(
     Object.keys(riskLabels).map((r) => [
@@ -87,7 +111,24 @@ watch(
   () => planner.items.map((item) => item.id).join(","),
   () => void ensureCosts(),
 );
-onMounted(() => void ensureCosts());
+/** 已保存方案在其它页面提交/撤回后，进入本页时同步一次状态 */
+async function syncPlanState() {
+  if (!planner.editingId) return;
+  syncing.value = true;
+  try {
+    const plans = (await api.plans()).data;
+    const current = plans.find((plan) => plan.id === planner.editingId);
+    if (current) planner.applyLifecycle(current);
+  } catch {
+    /* 同步失败时保留本机状态，不打断编辑 */
+  } finally {
+    syncing.value = false;
+  }
+}
+onMounted(() => {
+  void ensureCosts();
+  void syncPlanState();
+});
 
 const stale = computed(
   () =>
@@ -98,8 +139,21 @@ function show(g: Group) {
   detail.value = g;
   drawer.value = true;
 }
+function errorStatus(error: unknown): number | undefined {
+  return (error as { response?: { status?: number } })?.response?.status;
+}
+function planSignature(): string {
+  return idempotencySignature({
+    planId: planner.editingId,
+    name: planner.name,
+    batch: planner.batch,
+    itemIds: planner.items.map((item) => item.id),
+  });
+}
 async function save() {
   if (saving.value) return;
+  if (!editable.value && !saveAs.value)
+    return ElMessage.warning(SUBMIT_LOCK_MESSAGE);
   if (!planner.name.trim()) return ElMessage.warning("请输入方案名称");
   saving.value = true;
   try {
@@ -107,19 +161,105 @@ async function save() {
       planner.name,
       planner.items.map((g) => g.id),
       saveAs.value ? undefined : planner.editingId,
+      planner.batch,
     );
     planner.editingId = response.data.id;
     planner.name = response.data.name;
     planner.profileKey = JSON.stringify(auth.user?.profile);
+    planner.applyLifecycle(response.data);
     saveDialog.value = false;
-    ElMessage.success("志愿方案已保存，可在“我的志愿方案”中查看与对比");
-  } catch {
-    /* API handles error */
+    ElMessage.success(
+      saveAs.value
+        ? "已另存为新方案，可在“我的志愿方案”中查看"
+        : "志愿方案已保存，可在“我的志愿方案”中查看与对比",
+    );
+    saveAs.value = false;
+  } catch (error) {
+    if (errorStatus(error) === 409) ElMessage.warning(SUBMIT_LOCK_MESSAGE);
+    /* 其它错误由 axios 拦截器提示 */
   } finally {
     saving.value = false;
   }
 }
+/** 提交方案：已提交后不可编辑；请求复用同一 Idempotency-Key，成功后清空 */
+async function submitPlan() {
+  if (submitting.value || withdrawing.value) return;
+  if (!editable.value) return ElMessage.warning(SUBMIT_LOCK_MESSAGE);
+  if (!planner.items.length)
+    return ElMessage.warning("当前方案还没有志愿，无法提交");
+  if (stale.value)
+    return ElMessage.warning("考生画像已变更，请先重新匹配并保存方案后再提交");
+  if (!planner.editingId)
+    return ElMessage.warning("请先保存方案，再提交给系统记录");
+  try {
+    await ElMessageBox.confirm(
+      `提交后方案将不可编辑（${planner.batch}），如需修改需先撤回。确定提交“${planner.name}”？`,
+      "提交志愿方案",
+      { confirmButtonText: "确认提交", cancelButtonText: "再想想" },
+    );
+  } catch {
+    return;
+  }
+  submitting.value = true;
+  try {
+    // 提交前先保存当前草稿，保证服务端提交内容与屏幕上的顺序/志愿一致
+    const saved = await api.savePlan(
+      planner.name,
+      planner.items.map((item) => item.id),
+      planner.editingId,
+      planner.batch,
+    );
+    planner.editingId = saved.data.id;
+    planner.name = saved.data.name;
+    planner.profileKey = JSON.stringify(auth.user?.profile);
+    planner.applyLifecycle(saved.data);
+    submitKeyState = submitKeyFor(planSignature(), submitKeyState, () =>
+      crypto.randomUUID(),
+    );
+    if (!isValidSubmitKey(submitKeyState.key)) {
+      submitKeyState = clearedSubmitKey();
+      return ElMessage.error("提交请求 key 生成失败，请重试");
+    }
+    const { data } = await api.submitPlan(planner.editingId, submitKeyState.key);
+    planner.applyLifecycle(data);
+    submitKeyState = clearedSubmitKey();
+    ElMessage.success("方案已提交；已提交方案不可编辑，需要修改请先撤回");
+  } catch (error) {
+    if (errorStatus(error) === 409) ElMessage.warning(SUBMIT_LOCK_MESSAGE);
+    else if (!errorStatus(error))
+      ElMessage.error("提交失败，请检查网络后重试");
+    // 提交失败保留同一个 key，重试不会重复创建记录
+  } finally {
+    submitting.value = false;
+  }
+}
+/** 撤回方案：回到草稿后可继续编辑 */
+async function withdrawPlan() {
+  if (withdrawing.value || submitting.value) return;
+  if (!planner.editingId) return;
+  try {
+    await ElMessageBox.confirm(
+      "撤回后方案回到草稿状态，可以继续编辑；已提交记录会保留撤回时间。确定撤回？",
+      "撤回方案",
+      { confirmButtonText: "确认撤回", cancelButtonText: "取消" },
+    );
+  } catch {
+    return;
+  }
+  withdrawing.value = true;
+  try {
+    const { data } = await api.withdrawPlan(planner.editingId);
+    planner.applyLifecycle(data);
+    submitKeyState = clearedSubmitKey();
+    ElMessage.success("已撤回为草稿，可以继续编辑");
+  } catch (error) {
+    if (errorStatus(error) === 409) ElMessage.warning(SUBMIT_LOCK_MESSAGE);
+  } finally {
+    withdrawing.value = false;
+  }
+}
 async function clear() {
+  if (!editable.value) return ElMessage.warning(SUBMIT_LOCK_MESSAGE);
   try {
     await ElMessageBox.confirm(
       "清空当前草稿？已保存的历史方案仍会保留。",
@@ -129,7 +269,8 @@ async function clear() {
   } catch {
     return;
   }
-  planner.replace([]);
+  planner.reset();
+  submitKeyState = clearedSubmitKey();
 }
 async function download() {
   if (!planner.editingId) return;
@@ -152,11 +293,25 @@ async function download() {
       <p>合理搭配冲稳保梯度，反复推敲每一个志愿。</p>
     </div>
     <div class="heading-actions">
-      <el-button @click="clear"><FilePlus2 :size="16" />新建方案</el-button
+      <el-select
+        v-model="planner.batch"
+        class="batch-select"
+        :disabled="!editable"
+        aria-label="方案批次"
+      >
+        <el-option
+          v-for="batch in PLAN_BATCHES"
+          :key="batch"
+          :value="batch"
+          :label="batch"
+        />
+      </el-select>
+      <el-button :disabled="!editable" @click="clear"
+        ><FilePlus2 :size="16" />新建方案</el-button
       ><el-button
         type="primary"
         size="large"
-        :disabled="!planner.items.length || !!stale"
+        :disabled="!planner.items.length || !!stale || !editable"
         @click="
           saveAs = false;
           saveDialog = true;
@@ -172,6 +327,10 @@ async function download() {
       >重新匹配<ArrowRight :size="14"
     /></RouterLink>
   </div>
+  <div v-if="!editable" class="notice compact plan-locked-notice">
+    <Lock :size="14" />已提交的方案不可编辑（提交于 {{ submittedText }}，批次
+    {{ planner.batch }}）。如需修改，请先「撤回为草稿」。
+  </div>
   <template v-if="planner.items.length"
     ><div class="planner-layout">
       <section class="panel planner-table">
@@ -179,16 +338,25 @@ async function download() {
           <div>
             <h3>
               {{ planner.name
-              }}<span class="tag subtle">{{
-                planner.editingId ? "编辑已存方案" : "本机草稿"
-              }}</span>
+              }}<span
+                class="tag"
+                :class="planner.status === 'submitted' ? 'warm' : 'subtle'"
+                >{{ statusText }}</span
+              ><span class="tag subtle">{{ planner.batch }}</span>
             </h3>
             <p>
-              共 {{ planner.items.length }} 个专业组 · 使用上下箭头调整优先顺序
+              共 {{ planner.items.length }} 个专业组 ·
+              {{
+                editable
+                  ? "使用上下箭头调整优先顺序"
+                  : "已提交，顺序与志愿均锁定"
+              }}
             </p>
           </div>
-          <RouterLink to="/analysis" class="text-button"
+          <RouterLink v-if="editable" to="/analysis" class="text-button"
             ><Plus :size="15" />添加志愿</RouterLink
+          ><span v-else class="text-button muted locked-hint"
+            ><Lock :size="14" />已提交锁定</span
           >
         </div>
         <div
@@ -226,29 +394,32 @@ async function download() {
           <div class="planner-row-actions">
             <button
               class="icon-button"
-              :disabled="index === 0"
-              aria-label="上移志愿"
+              :disabled="!editable || index === 0"
+              :aria-label="editable ? '上移志愿' : '已提交，不可调整顺序'"
               @click="planner.move(index, -1)"
             >
               <ArrowUp :size="16" /></button
             ><button
               class="icon-button"
-              :disabled="index === planner.items.length - 1"
-              aria-label="下移志愿"
+              :disabled="!editable || index === planner.items.length - 1"
+              :aria-label="editable ? '下移志愿' : '已提交，不可调整顺序'"
               @click="planner.move(index, 1)"
             >
               <ArrowDown :size="16" /></button
             ><button
               class="icon-button danger"
-              aria-label="删除志愿"
-              @click="planner.items.splice(index, 1)"
+              :disabled="!editable"
+              :aria-label="editable ? '删除志愿' : '已提交，不可删除志愿'"
+              @click="editable && planner.items.splice(index, 1)"
             >
               <Trash2 :size="16" />
             </button>
           </div>
         </div>
-        <RouterLink to="/analysis" class="add-plan-row"
+        <RouterLink v-if="editable" to="/analysis" class="add-plan-row"
           ><Plus :size="16" />继续添加适合我的院校</RouterLink
+        ><span v-else class="add-plan-row disabled locked-hint"
+          ><Lock :size="14" />已提交方案不可编辑，撤回后可继续添加</span
         >
       </section>
       <aside>
@@ -320,7 +491,7 @@ async function download() {
           <el-button
             type="primary"
             size="large"
-            :disabled="!!stale"
+            :disabled="!!stale || !editable || saving"
             @click="
               saveAs = false;
               saveDialog = true;
@@ -329,8 +500,27 @@ async function download() {
               planner.editingId ? "更新保存方案" : "保存我的方案"
             }}</el-button
           ><el-button
+            v-if="editable"
+            type="primary"
+            size="large"
+            plain
+            :loading="submitting"
+            :disabled="
+              !planner.editingId || !planner.items.length || !!stale || saving
+            "
+            @click="submitPlan"
+            ><Send :size="16" />提交方案</el-button
+          ><el-button
+            v-else
+            type="warning"
+            size="large"
+            plain
+            :loading="withdrawing"
+            @click="withdrawPlan"
+            ><Undo2 :size="16" />撤回为草稿</el-button
+          ><el-button
             v-if="planner.editingId"
-            :disabled="!!stale"
+            :disabled="!!stale || saving"
             @click="
               saveAs = true;
               saveDialog = true;
@@ -341,7 +531,13 @@ async function download() {
             :loading="exporting"
             @click="download"
             ><Download :size="15" />导出已保存版本</el-button
-          ><RouterLink to="/plans" class="text-button"
+          ><p v-if="editable && !planner.editingId" class="plan-submit-hint">
+            <Info :size="12" />提交前请先「保存方案」。
+          </p>
+          <p v-else-if="!editable" class="plan-submit-hint">
+            <Lock :size="12" />已提交方案不可编辑；撤回后可继续调整顺序与志愿。
+          </p>
+          <RouterLink to="/plans" class="text-button"
             >查看历史方案与对比<ArrowRight :size="14"
           /></RouterLink>
         </section>
@@ -368,17 +564,59 @@ async function download() {
       v-model="planner.name"
       maxlength="80"
       show-word-limit
+      :disabled="!editable && !saveAs"
       placeholder="例如：长三角 · 计算机优先"
       @keyup.enter="save"
     />
     <p class="muted">
+      批次：{{ planner.batch }} · 状态：{{ statusText }} ·
       将保存 {{ planner.items.length }} 个专业组及当前考生画像快照。
     </p>
     <template #footer
       ><el-button @click="saveDialog = false">取消</el-button
-      ><el-button type="primary" :loading="saving" @click="save"
+      ><el-button
+        type="primary"
+        :loading="saving"
+        :disabled="!editable && !saveAs"
+        @click="save"
         >确认保存</el-button
       ></template
     ></el-dialog
   ><GroupDrawer v-model="drawer" :group="detail" />
 </template>
+
+<style scoped>
+.batch-select {
+  width: 104px;
+}
+.batch-select :deep(.el-select__wrapper) {
+  min-height: 32px;
+  font-size: 11px;
+}
+.plan-locked-notice {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  border-color: #e6dcc8;
+  background: #fdf9f1;
+  color: #93794f;
+}
+.locked-hint {
+  color: #9aa8ba;
+  cursor: default;
+}
+.add-plan-row.disabled {
+  cursor: default;
+  color: #a4afbd;
+}
+.plan-submit-hint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  color: #9aa8ba;
+  margin-top: -4px;
+  line-height: 1.7;
+}
+</style>

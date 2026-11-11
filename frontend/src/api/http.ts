@@ -24,6 +24,11 @@ http.interceptors.response.use(
       error.response?.status === 422 &&
       (error.config?.url || "").startsWith("/real-data/");
     if (missingRealData) return Promise.reject(error);
+    // 已提交方案不可编辑（409）由页面提示「已提交的方案不可编辑，请先撤回」，不重复弹通用错误
+    const lockedPlan =
+      error.response?.status === 409 &&
+      (error.config?.url || "").startsWith("/plans/");
+    if (lockedPlan) return Promise.reject(error);
     const detail = error.response?.data?.detail;
     const missingAiRoute =
       error.response?.status === 404 &&

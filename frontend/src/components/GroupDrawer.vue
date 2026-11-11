@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { BookOpen, Info, Repeat2, ShieldCheck } from "lucide-vue-next";
+import {
+  AlertTriangle,
+  BookOpen,
+  Heart,
+  Info,
+  Repeat2,
+  ShieldCheck,
+} from "lucide-vue-next";
 import type { BudgetEstimate, Group } from "../api/types";
 import TrendChart from "./TrendChart.vue";
 import RiskBadge from "./RiskBadge.vue";
@@ -8,6 +15,7 @@ import MajorCardDrawer from "./MajorCardDrawer.vue";
 import ReadinessList from "./ReadinessList.vue";
 import { usePlanner } from "../stores/planner";
 import { useAuth } from "../stores/auth";
+import { useFavorites } from "../stores/favorites";
 import { number } from "../utils/format";
 import {
   cityTierLabel,
@@ -43,6 +51,17 @@ const transfer = computed(() =>
 const official = computed(() => props.group?.official ?? null);
 const officialText = computed(() => officialCheckText(official.value));
 const officialUrl = computed(() => safeSourceUrl(official.value?.source_url));
+/** 收藏（真实用户行为）：由 /favorites/ids 初始化，点击乐观切换 */
+const favorites = useFavorites();
+const favorited = computed(() =>
+  props.group ? favorites.has(props.group.university.id) : false,
+);
+async function toggleFavorite() {
+  if (!props.group) return;
+  await favorites.toggle(props.group.university.id, props.group.university.name);
+}
+/** RTM 体检提示：只做黄/红提示，不参与筛选，也不构成报考资格认定 */
+const physicalFlags = computed(() => props.group?.physical_flags ?? []);
 const tierTags = computed(() => {
   const university = props.group?.university;
   if (!university) return [];
@@ -85,7 +104,23 @@ watch(
           <h2>{{ group.university.name }}</h2>
           <p>{{ group.university.city }} · {{ group.university.level }}</p>
         </div>
-        <RiskBadge :risk="group.risk" />
+        <div class="detail-heading-actions">
+          <RiskBadge :risk="group.risk" />
+          <button
+            class="favorite-button"
+            :class="{ active: favorited }"
+            :aria-pressed="favorited"
+            :aria-label="
+              favorited
+                ? `取消收藏${group.university.name}`
+                : `收藏${group.university.name}`
+            "
+            @click="toggleFavorite"
+          >
+            <Heart :size="14" :fill="favorited ? 'currentColor' : 'none'" />
+            <span>{{ favorited ? "已收藏" : "收藏院校" }}</span>
+          </button>
+        </div>
       </div>
       <div class="school-tags detail-tags">
         <span class="tag">{{ group.university.category }}</span>
@@ -129,6 +164,21 @@ watch(
         </template>
         <p v-else class="official-block-line muted">
           {{ group.province }} 的官方投档数据尚未入库，本页位次与分数参考来自模拟样本，未做任何推测。
+        </p>
+      </div>
+      <div v-if="physicalFlags.length" class="drawer-physical">
+        <h3><AlertTriangle :size="15" />体检相关提示</h3>
+        <div
+          v-for="flag in physicalFlags"
+          :key="`${flag.level}-${flag.label}`"
+          :class="['drawer-physical-item', flag.level]"
+        >
+          <span class="drawer-physical-tag">{{ flag.label }}</span>
+          <p>{{ flag.text }}</p>
+        </div>
+        <p class="drawer-physical-note">
+          <Info :size="12" />依据《普通高等学校招生体检工作指导意见》规则做提示，仅提示可能相关，
+          不构成报考资格认定；最终以省考试院、高校招生章程与体检结论为准。
         </p>
       </div>
       <h3>
@@ -349,5 +399,94 @@ watch(
   margin-top: 5px;
   font-size: 10px;
   color: #9aa8a0;
+}
+.detail-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.favorite-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: #8b98aa;
+  background: #f5f7fa;
+  border: 1px solid #e8edf4;
+  border-radius: 6px;
+  padding: 6px 9px;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+.favorite-button:hover {
+  color: #d06a7a;
+  background: #fff2f4;
+  border-color: #f3d4da;
+}
+.favorite-button.active {
+  color: #cf5d70;
+  background: #fff0f3;
+  border-color: #f0ccd4;
+}
+.drawer-physical {
+  margin: 16px 0 4px;
+  border: 1px solid #f4e6c9;
+  background: #fffaf1;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.drawer-physical > h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #9c7a3f;
+}
+.drawer-physical-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 11px;
+  line-height: 1.7;
+  padding: 5px 0;
+  border-top: 1px dashed #f0e3c8;
+}
+.drawer-physical-item:first-of-type {
+  border-top: 0;
+}
+.drawer-physical-item p {
+  color: #8a7149;
+}
+.drawer-physical-tag {
+  flex-shrink: 0;
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.drawer-physical-item.red .drawer-physical-tag {
+  color: #b4555f;
+  background: #fdeef0;
+}
+.drawer-physical-item.yellow .drawer-physical-tag {
+  color: #9c7a3f;
+  background: #f9eed6;
+}
+.drawer-physical-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin-top: 8px;
+  font-size: 9px;
+  color: #a5a08f;
+  line-height: 1.7;
+}
+.drawer-physical-note > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 </style>

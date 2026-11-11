@@ -9,6 +9,8 @@ import {
   Plus,
   FolderHeart,
   Info,
+  Lock,
+  Eye,
 } from "lucide-vue-next";
 import { ElMessage } from "element-plus/es/components/message/index";
 import { ElMessageBox } from "element-plus/es/components/message-box/index";
@@ -17,6 +19,7 @@ import { api } from "../api";
 import type { Plan, Group } from "../api/types";
 import { usePlanner } from "../stores/planner";
 import { date, riskLabels, exportPlan, number } from "../utils/format";
+import { SUBMIT_LOCK_MESSAGE, planBatchLabel, planStatusLabel } from "../utils/rtm";
 import RiskBadge from "../components/RiskBadge.vue";
 import GroupDrawer from "../components/GroupDrawer.vue";
 const plans = ref<Plan[]>([]);
@@ -51,9 +54,11 @@ async function edit(p: Plan) {
   if (planner.items.length) {
     try {
       await ElMessageBox.confirm(
-        "打开此方案将替换当前本机草稿。是否继续？",
+        p.status === "submitted"
+          ? "该方案已提交，打开后为只读（可查看/导出，需撤回才能编辑）。打开后将替换当前本机草稿，是否继续？"
+          : "打开此方案将替换当前本机草稿。是否继续？",
         "打开历史方案",
-        { confirmButtonText: "继续编辑", cancelButtonText: "取消" },
+        { confirmButtonText: "继续打开", cancelButtonText: "取消" },
       );
     } catch {
       return;
@@ -64,10 +69,19 @@ async function edit(p: Plan) {
     p.id,
     p.name,
     p.profile_snapshot,
+    {
+      batch: p.batch,
+      status: p.status,
+      submittedAt: p.submitted_at,
+    },
   );
   await router.push("/planner");
 }
 async function remove(p: Plan) {
+  if (p.status === "submitted") {
+    ElMessage.warning(SUBMIT_LOCK_MESSAGE);
+    return;
+  }
   try {
     await ElMessageBox.confirm(
       `确定删除“${p.name}”？此操作无法撤销。`,
@@ -153,6 +167,16 @@ onMounted(load);
         >
           {{ plan.name }}<ArrowRight :size="16" />
         </button>
+        <div class="saved-plan-badges">
+          <span
+            class="tag"
+            :class="plan.status === 'submitted' ? 'warm' : 'subtle'"
+            >{{ planStatusLabel(plan.status) }}</span
+          ><span class="tag subtle">{{ planBatchLabel(plan.batch) }}</span
+          ><span v-if="plan.submitted_at" class="tag subtle"
+            ><Lock :size="10" />提交于 {{ date(plan.submitted_at) }}</span
+          >
+        </div>
         <p class="muted">
           {{ plan.profile_snapshot.province }} ·
           {{ plan.profile_snapshot.exam_year }} 届 ·
@@ -170,11 +194,21 @@ onMounted(load);
         </div>
         <p class="saved-time">最近保存 {{ date(plan.updated_at) }}</p>
         <div class="saved-plan-actions">
-          <el-button @click="edit(plan)"><Pencil :size="14" />编辑</el-button
+          <el-button @click="edit(plan)"
+            ><Eye v-if="plan.status === 'submitted'" :size="14" /><Pencil
+              v-else
+              :size="14"
+            />{{ plan.status === "submitted" ? "查看" : "编辑" }}</el-button
           ><el-button :loading="downloading === plan.id" @click="download(plan)"
             ><Download :size="14" />导出</el-button
           ><button
             class="icon-button danger"
+            :disabled="plan.status === 'submitted'"
+            :title="
+              plan.status === 'submitted'
+                ? '已提交方案不可删除，请先在规划中心撤回'
+                : '删除方案'
+            "
             aria-label="删除方案"
             @click="remove(plan)"
           >
@@ -264,3 +298,26 @@ onMounted(load);
     ></el-dialog
   ><GroupDrawer v-model="drawer" :group="detail" />
 </template>
+
+<style scoped>
+.saved-plan-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.saved-plan-badges .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+}
+.saved-plan-badges .tag.warm {
+  color: #a8793f;
+  background: #fdf4e8;
+}
+.saved-plan-actions > .icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+</style>
