@@ -83,6 +83,11 @@ class RealDataTests(unittest.TestCase):
         self.assertEqual(items[0]['official']['min_rank'], 17500)
         self.assertIsNone(items[1]['official'])
 
+    def test_list_rows_deep_page_returns_empty_without_error(self):
+        rows = real_data.list_rows(self.db, '辽宁', None, '', page=1000, page_size=50)
+        self.assertEqual(rows['total'], 2)
+        self.assertEqual(rows['items'], [])
+
 
 if __name__ == '__main__':
     unittest.main()
