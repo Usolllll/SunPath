@@ -169,7 +169,19 @@ export interface Group {
   weights?: Weights | null;
   /** 官方真实投档核对；未收录（如演示账号浙江）为 null，属正常情况 */
   official?: OfficialCheck | null;
+  /** RTM：体检相关提示（只提示、不过滤候选人；无体检数据时为 [] 或缺失） */
+  physical_flags?: PhysicalFlag[];
 }
+/** 一条体检提示：level 只决定黄/红提示色，不构成报考资格认定，更不代表录取概率 */
+export interface PhysicalFlag {
+  level: "red" | "yellow";
+  label: string;
+  text: string;
+}
+/** 方案批次（RTM）：本科批 / 专科批 */
+export type PlanBatch = "本科批" | "专科批";
+/** 方案状态（RTM）：草稿可编辑；已提交需先撤回才能编辑 */
+export type PlanStatus = "draft" | "submitted";
 export interface Plan {
   id: number;
   name: string;
@@ -177,6 +189,11 @@ export interface Plan {
   profile_snapshot: Profile;
   created_at: string;
   updated_at: string;
+  /** RTM 批次与生命周期字段；旧版本后端缺失时按 本科批 / draft 处理 */
+  batch?: PlanBatch | null;
+  status?: PlanStatus | null;
+  submitted_at?: string | null;
+  idempotency_key?: string | null;
 }
 /** 一组候选的四年成本汇总（注意：/recommendations 的 total 是全部候选之和，不代表一份方案） */
 export interface BudgetSummary {
@@ -357,4 +374,128 @@ export interface ChatAvailableContext {
     group_count: number;
     updated_at: string;
   }[];
+}
+
+// ---------------------------------------------------------------- RTM：收藏 / 运营与数据质量
+export interface FavoriteUniversity {
+  id: number;
+  name: string;
+  city: string;
+  region: string;
+  level: string;
+  level_tier: number | null;
+  category: string;
+}
+/** GET /favorites：我的收藏（真实用户行为，按收藏时间倒序） */
+export interface Favorite {
+  id: number;
+  university: FavoriteUniversity;
+  created_at: string;
+}
+export interface FavoriteIds {
+  ids: number[];
+}
+export interface FaqItem {
+  id: number | string;
+  category: string;
+  question: string;
+  answer: string;
+  source: string | null;
+  source_url: string | null;
+}
+/** GET /ops/faq：常见问题（支持 q / category 过滤） */
+export interface FaqResult {
+  total: number;
+  categories: string[];
+  items: FaqItem[];
+}
+export interface DictionaryMode {
+  key: string;
+  label: string;
+  weights: Record<string, number>;
+}
+/** GET /ops/dictionary：数据字典（口径说明用） */
+export interface DataDictionary {
+  provinces: string[];
+  subjects: string[];
+  levels: string[];
+  city_tiers: unknown;
+  batches: string[];
+  modes: DictionaryMode[];
+  risks: Record<string, string>;
+  budget_tiers: { name: string; range: string }[];
+  data_sources: {
+    id?: string;
+    dataset?: string;
+    province?: string;
+    automation?: string;
+  }[];
+}
+export interface SimulatedCounts {
+  universities: number;
+  groups: number;
+  admissions: number;
+  enrollments: number;
+  major_cards: number;
+}
+export interface QualityVersion {
+  dataset: string;
+  province?: string | null;
+  exam_year?: number | null;
+  row_count?: number | null;
+  published_at?: string | null;
+  fetched_at?: string | null;
+  source_url?: string | null;
+  doc_status?: string | null;
+  is_current?: boolean | null;
+}
+export interface PatrolItem {
+  id?: string | number | null;
+  dataset: string;
+  ok: boolean | null;
+  status: string | number | null;
+  changed: boolean | null;
+  checked_at: string | null;
+}
+export interface PatrolReport {
+  last_checked_at: string | null;
+  report_file?: string | null;
+  items: PatrolItem[];
+}
+/** GET /ops/data-quality：数据质量看板（模拟数据量 + 真实数据覆盖 + 版本台账 + 巡检） */
+export interface DataQuality {
+  generated_at: string;
+  simulated: SimulatedCounts;
+  real: { total_rows: number; provinces: RealDataProvinceSummary[] };
+  versions: QualityVersion[];
+  patrol: PatrolReport | null;
+  counts: {
+    favorites: number;
+    audit_logs: number;
+    plans: number;
+    faq: number;
+  };
+  disclaimer: string;
+}
+/** GET /ops/popularity：收藏热度（真实用户行为；空数据时 items 为空数组） */
+export interface PopularityItem {
+  university_id: number;
+  name: string;
+  city: string;
+  region: string;
+  level: string;
+  level_tier: number | null;
+  favorites: number;
+}
+export type PopularityResult =
+  | PopularityItem[]
+  | {
+      total: number;
+      items: PopularityItem[];
+      note?: string | null;
+    };
+export interface ProfileCompleteness {
+  score: number;
+  filled: string[];
+  missing: string[];
 }

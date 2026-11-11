@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   LayoutDashboard,
@@ -9,6 +9,8 @@ import {
   MessageCircle,
   Route,
   FolderHeart,
+  Heart,
+  ShieldCheck,
   Settings2,
   ArrowUpRight,
   Menu,
@@ -23,9 +25,11 @@ import { ElMessageBox } from "element-plus/es/components/message-box/index";
 import BrandLogo from "../components/BrandLogo.vue";
 import { useAuth } from "../stores/auth";
 import { usePlanner } from "../stores/planner";
+import { useFavorites } from "../stores/favorites";
 import { api } from "../api";
 const auth = useAuth();
 const planner = usePlanner();
+const favorites = useFavorites();
 const route = useRoute();
 const router = useRouter();
 const mobileOpen = ref(false);
@@ -39,8 +43,12 @@ const nav = [
   { path: "/ai-chat", label: "AI 问答", icon: MessageCircle },
   { path: "/planner", label: "志愿规划中心", icon: Route },
   { path: "/plans", label: "我的志愿方案", icon: FolderHeart },
+  { path: "/favorites", label: "我的收藏", icon: Heart },
+  { path: "/quality", label: "数据质量", icon: ShieldCheck },
+  { path: "/faq", label: "常见问题", icon: CircleHelp },
 ];
 const profile = computed(() => auth.user?.profile);
+onMounted(() => void favorites.load());
 async function logout() {
   try {
     await ElMessageBox.confirm(
@@ -97,6 +105,10 @@ function command(value: string) {
             v-if="item.path === '/planner' && planner.items.length"
             class="nav-count"
             >{{ planner.items.length }}</span
+          ><span
+            v-if="item.path === '/favorites' && favorites.ids.length"
+            class="nav-count"
+            >{{ favorites.ids.length }}</span
           ></RouterLink
         >
       </nav>

@@ -49,6 +49,21 @@ const router = createRouter({
           meta: { title: "我的志愿方案", subtitle: "SAVED PLANS" },
         },
         {
+          path: "favorites",
+          component: () => import("../views/FavoritesView.vue"),
+          meta: { title: "我的收藏", subtitle: "FAVORITES" },
+        },
+        {
+          path: "quality",
+          component: () => import("../views/QualityView.vue"),
+          meta: { title: "数据质量", subtitle: "DATA QUALITY" },
+        },
+        {
+          path: "faq",
+          component: () => import("../views/FaqView.vue"),
+          meta: { title: "常见问题", subtitle: "FAQ" },
+        },
+        {
           path: "account",
           component: () => import("../views/AccountView.vue"),
           meta: { title: "个人中心", subtitle: "ACCOUNT" },

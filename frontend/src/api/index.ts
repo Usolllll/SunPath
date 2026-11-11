@@ -20,6 +20,14 @@ import type {
   RealDataSummary,
   RealDataRows,
   RealDataSchool,
+  PlanBatch,
+  Favorite,
+  FavoriteIds,
+  FaqResult,
+  DataDictionary,
+  DataQuality,
+  PopularityResult,
+  ProfileCompleteness,
 } from "./types";
 export const api = {
   chatConfig: () =>
@@ -122,11 +130,43 @@ export const api = {
       data_label: string;
     }>("/overview"),
   plans: () => http.get<Plan[]>("/plans"),
-  savePlan: (name: string, group_ids: number[], id?: number) =>
+  /** 保存 / 更新方案；RTM 新增 batch（'本科批'|'专科批'），仅草稿可编辑 */
+  savePlan: (
+    name: string,
+    group_ids: number[],
+    id?: number,
+    batch: PlanBatch = "本科批",
+  ) =>
     id
-      ? http.put<Plan>(`/plans/${id}`, { name, group_ids })
-      : http.post<Plan>("/plans", { name, group_ids }),
+      ? http.put<Plan>(`/plans/${id}`, { name, group_ids, batch })
+      : http.post<Plan>("/plans", { name, group_ids, batch }),
   deletePlan: (id: number) => http.delete(`/plans/${id}`),
   exportPlan: (id: number) =>
     http.get<Blob>(`/plans/${id}/export`, { responseType: "blob" }),
+  /**
+   * 提交方案（RTM）。Idempotency-Key 由前端生成：同一草稿重试复用同一个 key，
+   * 提交成功后清空；后端按 key 幂等，避免重复提交产生多份记录。
+   */
+  submitPlan: (id: number, idempotencyKey: string) =>
+    http.post<Plan>(`/plans/${id}/submit`, null, {
+      headers: { "Idempotency-Key": idempotencyKey },
+    }),
+  /** 撤回到草稿（RTM）：仅已提交方案可撤回 */
+  withdrawPlan: (id: number) => http.post<Plan>(`/plans/${id}/withdraw`),
+  // ---------------------------------------------------------------- RTM：收藏
+  favorites: () => http.get<Favorite[]>("/favorites"),
+  favoriteIds: () => http.get<FavoriteIds>("/favorites/ids"),
+  addFavorite: (university_id: number) =>
+    http.post<Favorite>("/favorites", { university_id }),
+  removeFavorite: (university_id: number) =>
+    http.delete(`/favorites/${university_id}`),
+  // ---------------------------------------------------------------- RTM：运营 / 数据质量
+  faq: (params: { q?: string; category?: string } = {}) =>
+    http.get<FaqResult>("/ops/faq", { params }),
+  dictionary: () => http.get<DataDictionary>("/ops/dictionary"),
+  dataQuality: () => http.get<DataQuality>("/ops/data-quality"),
+  popularity: (limit = 10) =>
+    http.get<PopularityResult>("/ops/popularity", { params: { limit } }),
+  profileCompleteness: () =>
+    http.get<ProfileCompleteness>("/ops/profile-completeness"),
 };
