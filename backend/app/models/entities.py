@@ -109,8 +109,36 @@ class Plan(Base):
     mode: Mapped[str | None] = mapped_column(String(10), default=None)
     weights_snapshot: Mapped[dict | None] = mapped_column(JSON, default=None)
     budget_snapshot: Mapped[dict | None] = mapped_column(JSON, default=None)
+    # v3: 批次与填报状态（提交/撤回/幂等）
+    batch: Mapped[str | None] = mapped_column(String(20), default='本科批')
+    status: Mapped[str] = mapped_column(String(20), default='draft')          # draft / submitted
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    idempotency_key: Mapped[str | None] = mapped_column(String(64), default=None, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Favorite(Base):
+    """院校收藏（FR-M5-05）。"""
+    __tablename__ = 'favorites'
+    __table_args__ = (UniqueConstraint('user_id', 'university_id'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    university_id: Mapped[int] = mapped_column(ForeignKey('universities.id'), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AuditLog(Base):
+    """登录与敏感操作审计（FR-M1-05）。只记动作与目标，不记密码/密钥/正文。"""
+    __tablename__ = 'audit_logs'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'), index=True, default=None)
+    action: Mapped[str] = mapped_column(String(40), index=True)
+    target: Mapped[str | None] = mapped_column(String(80), default=None)
+    detail: Mapped[dict | None] = mapped_column(JSON, default=None)
+    ip: Mapped[str | None] = mapped_column(String(45), default=None)
+    user_agent: Mapped[str | None] = mapped_column(String(200), default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
 class RealAdmission(Base):
@@ -121,6 +149,7 @@ class RealAdmission(Base):
                          'group_name', 'major_name', 'school_name', 'admission_type',
                          name='uq_real_admission'),
         Index('ix_real_admission_province_year', 'province', 'exam_year'),
+        Index('ix_real_admission_province_year_school', 'province', 'exam_year', 'school_name', 'min_rank'),
         Index('ix_real_admission_school', 'school_name'),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
