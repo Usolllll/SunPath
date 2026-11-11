@@ -2,8 +2,11 @@
 
 v2：新增「取舍沙盘」模式（school / balanced / major）与预算上限。模式**只改变同一梯度内的
 选择与顺序**，绝不改变候选池（哪些组合格）与冲稳保配额；缺省 mode 时回退一期排序行为。
+
+v3：每个 item 增加 `physical_flags`（体检受限提示，复用 readiness 规则）。只增加提示字段，
+**不参与**候选池过滤、配额、打分与排序；无体检数据时为空数组。
 """
-from app.services import budget, scoring
+from app.services import budget, enrichment, readiness, scoring
 from app.services.catalog import load_groups, serialize_group
 
 ENGINE_VERSION = 'rank-rules-v2'
@@ -13,9 +16,17 @@ def _cost(item):
     return budget.four_year_cost(item)
 
 
+def physical_flags(group, profile, rules=None):
+    """体检受限提示：命中 red/yellow 规则且专业组含 blocked_keywords 时给出提示；只提示不过滤。"""
+    info = readiness.group_readiness(group, profile, rules)
+    return [{'level': entry.get('level', 'red'), 'label': entry.get('label'), 'text': entry.get('text')}
+            for entry in info['blockers'] + info['warnings']]
+
+
 def recommend(db, profile, groups=None, mode=None, budget_cap=None, include_cost=True):
     results = []
     interests = getattr(profile, 'interests', None)
+    rules = enrichment.readiness_rules()
     for group in (load_groups(db) if groups is None else groups):
         if not set(group.required_subjects).issubset(set(profile.subjects)):
             continue
@@ -45,6 +56,7 @@ def recommend(db, profile, groups=None, mode=None, budget_cap=None, include_cost
         item.update(risk=risk, baseline_rank=baseline, history_rank_min=min(ranks), history_rank_max=max(ranks),
                     rank_ratio=round(ratio, 4), volatility=volatility, reasons=reasons, warnings=warnings,
                     preference_matches=int(region_match) + int(major_match))
+        item['physical_flags'] = physical_flags(group, profile, rules)
         if include_cost:
             item['cost'] = _cost(item)
         if mode is not None:

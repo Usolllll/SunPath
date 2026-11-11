@@ -107,9 +107,13 @@ class PasswordIn(BaseModel):
     current_password: str = Field(min_length=8, max_length=128)
     new_password: str = Field(min_length=8, max_length=128)
 
+BATCHES = ['本科批', '专科批']
+
 class PlanIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     group_ids: list[int] = Field(min_length=1, max_length=30)
+    # v3: 填报批次（缺省本科批；只做方案归属，不改变推荐候选池）
+    batch: Literal['本科批', '专科批'] = '本科批'
 
     @field_validator('name')
     @classmethod
@@ -124,3 +128,7 @@ class PlanIn(BaseModel):
         if len(set(v)) != len(v):
             raise ValueError('方案中不能重复添加同一专业组')
         return v
+
+class FavoriteIn(BaseModel):
+    """收藏院校；只收院校 id，院校是否存在由接口校验。"""
+    university_id: int = Field(gt=0)
