@@ -263,3 +263,19 @@ class BatchConfig(Base):
     fill_end: Mapped[str | None] = mapped_column(String(10), default=None)
     note: Mapped[str | None] = mapped_column(String(200), default=None)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class StudyAbroadTarget(Base):
+    """留学规划目标（FR-M11-01）：每用户一条；path=gaokao/post_gaokao/international。"""
+    __tablename__ = 'study_abroad_targets'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), unique=True, index=True)
+    region: Mapped[str] = mapped_column(String(10))
+    school_id: Mapped[str] = mapped_column(String(40))
+    test_type: Mapped[str] = mapped_column(String(10))
+    test_score: Mapped[float] = mapped_column(Float)
+    target_major: Mapped[str | None] = mapped_column(String(60), default=None)
+    path: Mapped[str] = mapped_column(String(20), default='gaokao')
+    gaokao_score: Mapped[float | None] = mapped_column(Float, default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

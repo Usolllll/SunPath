@@ -1,0 +1,866 @@
+{
+  "_meta": {
+    "purpose": "留学规划模块的院校索引与官方申请入口（FR-M11-01）。",
+    "updated_at": "2026-11",
+    "data_mode": "参考索引",
+    "note": "语言分数为学校官网公布的常见最低要求的参考值，可能随专业与年份变化；申请要求、截止日期与材料清单一律以学校官网为准。本文件只做官方入口索引，不抓取、不代填申请表。",
+    "language_hint": "英国/香港/新加坡的本科项目通常要求提供雅思或托福成绩；美国院校另需 SAT/ACT 等标化与文书材料。语言成绩不达标时，部分学校提供预科或语言班，需以官网说明为准。",
+    "pathways": [
+      {
+        "code": "gaokao",
+        "label": "准备或已参加高考（用高考成绩申请）",
+        "summary": "以高考成绩 + 语言成绩申请接受高考的院校；不同国家/学校对高考成绩与英语单科的认可度差异很大。",
+        "note": "只把高考成绩作为申请材料之一，是否接受、分数门槛与英语单科要求以学校官网当年说明为准。"
+      },
+      {
+        "code": "post_gaokao",
+        "label": "高考后才决定留学（预科 / 国际大一）",
+        "summary": "高考后再转向留学，常见路径是预科（Foundation）或国际大一（International Year One），用高中成绩与语言成绩申请。",
+        "note": "预科/国际大一通常有升学考核，能否进入目标学位课程取决于成绩，不等于直接录取。"
+      },
+      {
+        "code": "international",
+        "label": "放弃国内高考，读国际课程（A-Level / IB / AP 等）",
+        "summary": "以国际课程成绩申请，英国走 UCAS、美国走 Common App/学校官网；语言成绩仍是硬门槛。",
+        "note": "国际课程体系与选课会影响可申请专业，需提前按目标专业规划。"
+      }
+    ],
+    "link_checked_at": "2026-11-12T17:22:24+08:00"
+  },
+  "tests": [
+    {
+      "code": "ielts",
+      "label": "雅思 IELTS",
+      "scale": "0–9 分",
+      "official_url": "https://ielts.org/",
+      "registration_url": "https://ielts.org/take-a-test/booking",
+      "note": "成绩两年有效；具体单项分要求以学校官网为准。",
+      "link_status": {
+        "official_url": {
+          "ok": true,
+          "status": 403,
+          "note": "可能有人机验证，浏览器通常可正常打开",
+          "checked_at": "2026-11-12T17:22:24+08:00"
+        },
+        "registration_url": {
+          "ok": true,
+          "status": 403,
+          "note": "可能有人机验证，浏览器通常可正常打开",
+          "checked_at": "2026-11-12T17:22:24+08:00"
+        }
+      }
+    },
+    {
+      "code": "toefl",
+      "label": "托福 TOEFL iBT",
+      "scale": "0–120 分",
+      "official_url": "https://www.ets.org/toefl.html",
+      "registration_url": "https://www.ets.org/toefl/test-takers/ibt/register.html",
+      "note": "成绩两年有效；部分学校接受家考版，需查看官网认可范围。",
+      "link_status": {
+        "official_url": {
+          "ok": true,
+          "status": 200,
+          "note": "可访问",
+          "checked_at": "2026-11-12T17:22:24+08:00"
+        },
+        "registration_url": {
+          "ok": true,
+          "status": 200,
+          "note": "可访问",
+          "checked_at": "2026-11-12T17:22:24+08:00"
+        }
+      }
+    }
+  ],
+  "regions": [
+    {
+      "code": "UK",
+      "label": "英国",
+      "application_portal": "UCAS（本科统一申请）",
+      "portal_url": "https://www.ucas.com/",
+      "note": "本科一般通过 UCAS 申请，通常可填 5 个志愿；医学等专业截止日期更早。",
+      "schools": [
+        {
+          "id": "uk-oxford",
+          "name": "University of Oxford",
+          "name_zh": "牛津大学",
+          "official_url": "https://www.ox.ac.uk/admissions/undergraduate",
+          "language": {
+            "ielts": 7.5,
+            "toefl": 110
+          },
+          "majors": [
+            "计算机科学",
+            "数学",
+            "经济与管理",
+            "法律",
+            "物理"
+          ],
+          "intakes": [
+            "每年 10 月"
+          ],
+          "note": "需通过面试与入学考试；语言最低要求通常为雅思 7.5（单项 7.0）。",
+          "gaokao": {
+            "accepted": false,
+            "note": "通常不接受高考直申，需 A-Level/IB 或预科"
+          },
+          "qualifications": [
+            "A-Level",
+            "IB",
+            "SAT/AP"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 403,
+              "note": "可能有人机验证，浏览器通常可正常打开",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "uk-cambridge",
+          "name": "University of Cambridge",
+          "name_zh": "剑桥大学",
+          "official_url": "https://www.undergraduate.study.cam.ac.uk/",
+          "language": {
+            "ielts": 7.5,
+            "toefl": 110
+          },
+          "majors": [
+            "计算机科学",
+            "数学",
+            "工程",
+            "经济学",
+            "自然科学"
+          ],
+          "intakes": [
+            "每年 10 月"
+          ],
+          "note": "需面试与学科测试；不同专业语言要求可能更高。",
+          "gaokao": {
+            "accepted": false,
+            "note": "通常不接受高考直申，需 A-Level/IB"
+          },
+          "qualifications": [
+            "A-Level",
+            "IB",
+            "AP"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 403,
+              "note": "可能有人机验证，浏览器通常可正常打开",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "uk-imperial",
+          "name": "Imperial College London",
+          "name_zh": "帝国理工学院",
+          "official_url": "https://www.imperial.ac.uk/study/apply/undergraduate/",
+          "language": {
+            "ielts": 6.5,
+            "toefl": 92
+          },
+          "majors": [
+            "计算机科学",
+            "电子电气工程",
+            "机械工程",
+            "物理",
+            "生物医学工程"
+          ],
+          "intakes": [
+            "每年 10 月"
+          ],
+          "note": "理工科为主；部分专业要求更高的语言分数与入学考试。",
+          "gaokao": {
+            "accepted": false,
+            "note": "通常不接受高考直申，需预科或国际课程"
+          },
+          "qualifications": [
+            "A-Level",
+            "IB",
+            "预科"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 202,
+              "note": "可访问",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "uk-ucl",
+          "name": "University College London",
+          "name_zh": "伦敦大学学院",
+          "official_url": "https://www.ucl.ac.uk/prospective-students/undergraduate",
+          "language": {
+            "ielts": 6.5,
+            "toefl": 92
+          },
+          "majors": [
+            "计算机科学",
+            "建筑学",
+            "经济学",
+            "心理学",
+            "教育学"
+          ],
+          "intakes": [
+            "每年 9 月"
+          ],
+          "note": "不同学院的语言要求差异较大，以专业页面为准。",
+          "gaokao": {
+            "accepted": false,
+            "note": "通常不接受高考直申，需预科或国际课程"
+          },
+          "qualifications": [
+            "A-Level",
+            "IB",
+            "预科"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 403,
+              "note": "可能有人机验证，浏览器通常可正常打开",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "uk-edinburgh",
+          "name": "The University of Edinburgh",
+          "name_zh": "爱丁堡大学",
+          "official_url": "https://www.ed.ac.uk/studying/undergraduate",
+          "language": {
+            "ielts": 7.0,
+            "toefl": 100
+          },
+          "majors": [
+            "计算机科学",
+            "人工智能",
+            "经济",
+            "会计与金融",
+            "产品设计"
+          ],
+          "intakes": [
+            "每年 9 月"
+          ],
+          "note": "苏格兰本科通常为四年制；语言要求按专业分档。",
+          "gaokao": {
+            "accepted": false,
+            "note": "通常不接受高考直申，需预科或国际课程"
+          },
+          "qualifications": [
+            "A-Level",
+            "IB",
+            "预科"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 403,
+              "note": "可能有人机验证，浏览器通常可正常打开",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "uk-manchester",
+          "name": "The University of Manchester",
+          "name_zh": "曼彻斯特大学",
+          "official_url": "https://www.manchester.ac.uk/study/undergraduate/",
+          "language": {
+            "ielts": 6.5,
+            "toefl": 90
+          },
+          "majors": [
+            "计算机科学",
+            "材料科学",
+            "商科",
+            "化学工程",
+            "经济学"
+          ],
+          "intakes": [
+            "每年 9 月"
+          ],
+          "note": "热门专业竞争激烈，建议同时准备保底院校。",
+          "gaokao": {
+            "accepted": false,
+            "note": "通常不接受高考直申，需预科或国际课程"
+          },
+          "qualifications": [
+            "A-Level",
+            "IB",
+            "预科"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 200,
+              "note": "可访问",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        }
+      ],
+      "pathways": {
+        "gaokao": "英国只有部分院校接受高考成绩直申，且通常还要求雅思/托福与较高高考分；顶尖院校（牛津、剑桥、帝国理工等）通常不接受高考直申，需 A-Level/IB 或预科路径。",
+        "post_gaokao": "可用高中成绩 + 语言成绩申请预科（Foundation）或国际大一，完成后升读本科；预科有升学分数要求。",
+        "international": "A-Level/IB 是主流路径，通过 UCAS 统一申请（通常 5 个志愿），医学等专业截止更早。"
+      },
+      "gaokao": {
+        "accepted": false,
+        "note": "英国顶尖院校通常不接受高考直申，需 A-Level/IB 或预科"
+      },
+      "link_status": {
+        "portal_url": {
+          "ok": true,
+          "status": 200,
+          "note": "可访问",
+          "checked_at": "2026-11-12T17:22:24+08:00"
+        }
+      }
+    },
+    {
+      "code": "HK",
+      "label": "中国香港",
+      "application_portal": "各校官网独立申请（非统一平台）",
+      "portal_url": "https://www.hku.hk/admissions/",
+      "note": "各校独立网申，通常需高中成绩、语言成绩与文书；部分学校提供提前批或面试。",
+      "schools": [
+        {
+          "id": "hk-hku",
+          "name": "The University of Hong Kong",
+          "name_zh": "香港大学",
+          "official_url": "https://www.hku.hk/admissions/",
+          "language": {
+            "ielts": 6.5,
+            "toefl": 93
+          },
+          "majors": [
+            "计算机科学",
+            "经济与金融",
+            "法律",
+            "医学",
+            "社会科学"
+          ],
+          "intakes": [
+            "每年 9 月"
+          ],
+          "note": "非本地生申请与本地生通道不同，语言要求按课程公布。",
+          "gaokao": {
+            "accepted": true,
+            "note": "接受高考生申请，英语单科与面试要求以官网为准"
+          },
+          "qualifications": [
+            "高考",
+            "A-Level",
+            "IB"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 200,
+              "note": "可访问",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "hk-hkust",
+          "name": "The Hong Kong University of Science and Technology",
+          "name_zh": "香港科技大学",
+          "official_url": "https://join.hkust.edu.hk/",
+          "language": {
+            "ielts": 6.0,
+            "toefl": 80
+          },
+          "majors": [
+            "计算机科学",
+            "电子工程",
+            "商科",
+            "数据科学",
+            "土木工程"
+          ],
+          "intakes": [
+            "每年 9 月"
+          ],
+          "note": "理工与商科为主；部分专业要求面试。",
+          "gaokao": {
+            "accepted": true,
+            "note": "接受高考生申请，英语与面试要求以官网为准"
+          },
+          "qualifications": [
+            "高考",
+            "A-Level",
+            "IB"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 200,
+              "note": "可访问",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "hk-cuhk",
+          "name": "The Chinese University of Hong Kong",
+          "name_zh": "香港中文大学",
+          "official_url": "https://admission.cuhk.edu.hk/",
+          "language": {
+            "ielts": 6.0,
+            "toefl": 80
+          },
+          "majors": [
+            "计算机科学",
+            "经济",
+            "传播学",
+            "医学",
+            "心理学"
+          ],
+          "intakes": [
+            "每年 9 月"
+          ],
+          "note": "有提前录取批次；具体语言门槛按课程页面。",
+          "gaokao": {
+            "accepted": true,
+            "note": "接受高考生申请，英语单科要求以官网为准"
+          },
+          "qualifications": [
+            "高考",
+            "A-Level",
+            "IB"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 200,
+              "note": "可访问",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "hk-polyu",
+          "name": "The Hong Kong Polytechnic University",
+          "name_zh": "香港理工大学",
+          "official_url": "https://www.polyu.edu.hk/study/ug/",
+          "language": {
+            "ielts": 6.0,
+            "toefl": 80
+          },
+          "majors": [
+            "计算机科学",
+            "设计学",
+            "酒店与旅游管理",
+            "建筑工程",
+            "会计"
+          ],
+          "intakes": [
+            "每年 9 月"
+          ],
+          "note": "应用型专业较多，部分课程需作品集或面试。",
+          "gaokao": {
+            "accepted": true,
+            "note": "接受高考生申请，部分课程需面试/作品集"
+          },
+          "qualifications": [
+            "高考",
+            "A-Level",
+            "IB"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 200,
+              "note": "可访问",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        }
+      ],
+      "pathways": {
+        "gaokao": "香港各校均接受内地高考生申请，通常要求高考成绩优秀 + 英语单科较高（部分院校参考英语 120+/150），并可能安排面试。",
+        "post_gaokao": "部分院校提供副学士/高级文凭等衔接路径，先读两年再升读本科，升学需达到规定成绩。",
+        "international": "国际课程（A-Level/IB/AP）也可申请，各校独立网申，需提交课程成绩与语言成绩。"
+      },
+      "gaokao": {
+        "accepted": true,
+        "note": "接受内地高考生申请，英语单科与面试要求以官网为准"
+      },
+      "link_status": {
+        "portal_url": {
+          "ok": true,
+          "status": 200,
+          "note": "可访问",
+          "checked_at": "2026-11-12T17:22:24+08:00"
+        }
+      }
+    },
+    {
+      "code": "US",
+      "label": "美国",
+      "application_portal": "各校官网 / Common App",
+      "portal_url": "https://www.commonapp.org/",
+      "note": "本科通常需语言成绩、高中成绩单、推荐信与文书；多数学校要求 SAT/ACT（或可选提交），以官网最新政策为准。",
+      "schools": [
+        {
+          "id": "us-mit",
+          "name": "Massachusetts Institute of Technology",
+          "name_zh": "麻省理工学院",
+          "official_url": "https://mitadmissions.org/",
+          "language": {
+            "ielts": 7.0,
+            "toefl": 100
+          },
+          "majors": [
+            "计算机科学",
+            "数学",
+            "物理",
+            "机械工程",
+            "生物工程"
+          ],
+          "intakes": [
+            "秋季（EA/RA）"
+          ],
+          "note": "标化与竞赛背景重要；申请含多轮文书与面试。",
+          "gaokao": {
+            "accepted": false,
+            "note": "不接受高考直申，需 SAT/ACT 与语言成绩"
+          },
+          "qualifications": [
+            "SAT/ACT",
+            "AP",
+            "IB"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 200,
+              "note": "可访问",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "us-stanford",
+          "name": "Stanford University",
+          "name_zh": "斯坦福大学",
+          "official_url": "https://admission.stanford.edu/",
+          "language": {
+            "ielts": 7.0,
+            "toefl": 100
+          },
+          "majors": [
+            "计算机科学",
+            "经济学",
+            "符号系统",
+            "生物学",
+            "心理学"
+          ],
+          "intakes": [
+            "秋季（REA/RD）"
+          ],
+          "note": "综合评估，无固定录取公式；需完整文书与推荐信。",
+          "gaokao": {
+            "accepted": false,
+            "note": "不接受高考直申，需 SAT/ACT 与语言成绩"
+          },
+          "qualifications": [
+            "SAT/ACT",
+            "AP",
+            "IB"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": false,
+              "status": null,
+              "note": "网络不可达：ConnectTimeout",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "us-harvard",
+          "name": "Harvard University",
+          "name_zh": "哈佛大学",
+          "official_url": "https://college.harvard.edu/admissions",
+          "language": {
+            "ielts": 7.5,
+            "toefl": 110
+          },
+          "majors": [
+            "经济学",
+            "计算机科学",
+            "政治学",
+            "生物学",
+            "历史"
+          ],
+          "intakes": [
+            "秋季（EA/RD）"
+          ],
+          "note": "语言与标化要求高；重视文书与课外活动。",
+          "gaokao": {
+            "accepted": false,
+            "note": "不接受高考直申，需 SAT/ACT 与语言成绩"
+          },
+          "qualifications": [
+            "SAT/ACT",
+            "AP",
+            "IB"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 403,
+              "note": "可能有人机验证，浏览器通常可正常打开",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "us-berkeley",
+          "name": "University of California, Berkeley",
+          "name_zh": "加州大学伯克利分校",
+          "official_url": "https://admissions.berkeley.edu/",
+          "language": {
+            "ielts": 6.5,
+            "toefl": 80
+          },
+          "majors": [
+            "计算机科学",
+            "电气工程",
+            "经济学",
+            "统计学",
+            "化学"
+          ],
+          "intakes": [
+            "秋季"
+          ],
+          "note": "公立校申请通过 UC 系统；热门专业竞争激烈。",
+          "gaokao": {
+            "accepted": false,
+            "note": "不接受高考直申，需 SAT/ACT（或可选提交政策）与语言成绩"
+          },
+          "qualifications": [
+            "SAT/ACT",
+            "AP",
+            "IB"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 403,
+              "note": "可能有人机验证，浏览器通常可正常打开",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "us-nyu",
+          "name": "New York University",
+          "name_zh": "纽约大学",
+          "official_url": "https://www.nyu.edu/admissions/undergraduate-admissions.html",
+          "language": {
+            "ielts": 7.5,
+            "toefl": 100
+          },
+          "majors": [
+            "商科",
+            "计算机科学",
+            "传媒",
+            "艺术",
+            "经济学"
+          ],
+          "intakes": [
+            "秋季/春季"
+          ],
+          "note": "有多个校区（纽约/阿布扎比/上海），申请时需选择。",
+          "gaokao": {
+            "accepted": false,
+            "note": "不接受高考直申，需标化与语言成绩"
+          },
+          "qualifications": [
+            "SAT/ACT",
+            "AP",
+            "IB"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 202,
+              "note": "可访问",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        }
+      ],
+      "pathways": {
+        "gaokao": "美国本科普遍不接受高考成绩直申，通常需要 SAT/ACT、托福/雅思与完整文书；少数学校接受高考作为补充材料，需逐校核实。",
+        "post_gaokao": "常见替代路径是社区大学（先读两年再转学）或桥梁课程，转学看大学成绩单，不等于直接录取名校。",
+        "international": "主流路径为高中成绩 + SAT/ACT + 语言成绩 + 文书与推荐信，通过 Common App 或学校官网申请。"
+      },
+      "gaokao": {
+        "accepted": false,
+        "note": "普遍不接受高考直申，需 SAT/ACT 与语言成绩"
+      },
+      "link_status": {
+        "portal_url": {
+          "ok": true,
+          "status": 200,
+          "note": "可访问",
+          "checked_at": "2026-11-12T17:22:24+08:00"
+        }
+      }
+    },
+    {
+      "code": "SG",
+      "label": "新加坡",
+      "application_portal": "各校官网独立申请",
+      "portal_url": "https://www.nus.edu.sg/oam/",
+      "note": "公立大学本科以 A-Level/IB/高考等成绩申请，语言成绩要求因学校与专业而异。",
+      "schools": [
+        {
+          "id": "sg-nus",
+          "name": "National University of Singapore",
+          "name_zh": "新加坡国立大学",
+          "official_url": "https://www.nus.edu.sg/oam/",
+          "language": {
+            "ielts": 6.5,
+            "toefl": 92
+          },
+          "majors": [
+            "计算机科学",
+            "商科",
+            "工程",
+            "法学",
+            "数据科学"
+          ],
+          "intakes": [
+            "每年 8 月"
+          ],
+          "note": "竞争激烈；部分专业需要面试或额外测试。",
+          "gaokao": {
+            "accepted": true,
+            "note": "接受高考成绩申请，分数与语言要求高，部分专业需面试"
+          },
+          "qualifications": [
+            "高考",
+            "A-Level",
+            "IB"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 200,
+              "note": "可访问",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "sg-ntu",
+          "name": "Nanyang Technological University",
+          "name_zh": "南洋理工大学",
+          "official_url": "https://www.ntu.edu.sg/admissions",
+          "language": {
+            "ielts": 6.0,
+            "toefl": 90
+          },
+          "majors": [
+            "计算机科学",
+            "电子工程",
+            "商科",
+            "材料工程",
+            "传媒"
+          ],
+          "intakes": [
+            "每年 8 月"
+          ],
+          "note": "工科见长；国际生申请有单独通道。",
+          "gaokao": {
+            "accepted": true,
+            "note": "接受高考成绩申请，分数与语言要求高"
+          },
+          "qualifications": [
+            "高考",
+            "A-Level",
+            "IB"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 200,
+              "note": "可访问",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        },
+        {
+          "id": "sg-smu",
+          "name": "Singapore Management University",
+          "name_zh": "新加坡管理大学",
+          "official_url": "https://www.smu.edu.sg/admissions",
+          "language": {
+            "ielts": 6.5,
+            "toefl": 90
+          },
+          "majors": [
+            "会计",
+            "金融",
+            "信息系统",
+            "经济学",
+            "法律"
+          ],
+          "intakes": [
+            "每年 8 月"
+          ],
+          "note": "商科与社科为主；部分项目要求面试。",
+          "gaokao": {
+            "accepted": true,
+            "note": "接受高考成绩申请，需语言成绩并可能面试"
+          },
+          "qualifications": [
+            "高考",
+            "A-Level",
+            "IB"
+          ],
+          "link_status": {
+            "official_url": {
+              "ok": true,
+              "status": 200,
+              "note": "可访问",
+              "checked_at": "2026-11-12T17:22:24+08:00"
+            }
+          }
+        }
+      ],
+      "pathways": {
+        "gaokao": "新加坡公立大学接受高考成绩申请（要求较高分数），并需雅思/托福等语言成绩，部分专业有面试或入学测试。",
+        "post_gaokao": "可考虑私立院校的预科/国际大一或理工学院路径，升学要求以学校说明为准。",
+        "international": "A-Level/IB 等国际课程可直接申请，竞争激烈，部分专业需面试。"
+      },
+      "gaokao": {
+        "accepted": true,
+        "note": "公立大学接受高考成绩申请，分数与语言要求较高"
+      },
+      "link_status": {
+        "portal_url": {
+          "ok": true,
+          "status": 200,
+          "note": "可访问",
+          "checked_at": "2026-11-12T17:22:24+08:00"
+        }
+      }
+    }
+  ]
+}
