@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     deepseek_base_url: str = 'https://api.deepseek.com'
     deepseek_model: str = 'deepseek-flash'
     deepseek_model_label: str = 'DeepSeek-V4.1-Flash-1017'
-    deepseek_timeout_seconds: int = Field(default=60, ge=10, le=120)
+    deepseek_timeout_seconds: int = Field(default=60, ge=10, le=180)
     # 天地图「浏览器端」Key：本身就是公开的浏览器端凭据，由部署方在自己的账号下申请。
     # 放在后端 .env 里便于独立部署时替换 Key，无需重新构建前端。
     tianditu_web_key: str = ''

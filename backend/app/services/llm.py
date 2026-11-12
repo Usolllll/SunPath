@@ -1,13 +1,37 @@
 """Single gateway for every LLM call. Provider secrets and model selection stay on the server."""
 import asyncio
 import json
+import re
 from pathlib import Path
+from urllib.parse import urlsplit
+
 import httpx
 from fastapi import HTTPException
+
 from app.core.config import get_settings
 from app.schemas.chat import ChatMessage, ChatOut
 
 CHAT_SKILL_PATH = Path(__file__).resolve().parents[1] / 'skills' / 'chat-advisor' / 'SKILL.md'
+# 无需 API Key 的免费公共通道（演示用；官方平台均需自己的 Key）
+KEYLESS_HOSTS = ('text.pollinations.ai',)
+# 只有 DeepSeek 官方接口支持 thinking 参数
+DEEPSEEK_HOSTS = ('api.deepseek.com',)
+
+
+def _host(base_url: str) -> str:
+    return (urlsplit(base_url).hostname or '').lower()
+
+
+def _matches(host: str, hosts: tuple[str, ...]) -> bool:
+    return any(host == item or host.endswith('.' + item) for item in hosts)
+
+
+def provider_ready(settings=None) -> bool:
+    """模型服务是否可用：有 Key，或使用了免 Key 的公共通道。"""
+    settings = settings or get_settings()
+    if settings.deepseek_api_key.get_secret_value().strip():
+        return True
+    return _matches(_host(settings.deepseek_base_url), KEYLESS_HOSTS)
 
 
 def _make_client(timeout):
@@ -26,10 +50,10 @@ async def complete(messages: list[ChatMessage], context: dict | None = None) -> 
 
 async def complete_json(skill: str, context: dict) -> tuple[dict, ChatOut]:
     result = await _request(skill, [{'role': 'user', 'content': json.dumps(context, ensure_ascii=False)}], json_mode=True)
-    if result.finish_reason != 'stop':
+    if result.finish_reason not in ('stop', 'length', None):
         raise HTTPException(502, 'AI 匹配结果未完整生成，请重试')
     try:
-        output = json.loads(result.content)
+        output = _extract_json_object(result.content)
         if not isinstance(output, dict):
             raise ValueError('Expected an object')
         return output, result
@@ -37,33 +61,62 @@ async def complete_json(skill: str, context: dict) -> tuple[dict, ChatOut]:
         raise HTTPException(502, 'AI 未返回有效的匹配 JSON，请重试') from None
 
 
+def _extract_json_object(content: str) -> dict:
+    """容忍免费/小模型常见的 ```json 包裹或前后解释文字，只取第一个 JSON 对象。"""
+    text = (content or '').strip()
+    if text.startswith('```'):
+        text = re.sub(r'^```[a-zA-Z]*\s*', '', text)
+        text = re.sub(r'\s*```$', '', text)
+    try:
+        return json.loads(text)
+    except (ValueError, TypeError):
+        start, end = text.find('{'), text.rfind('}')
+        if start == -1 or end <= start:
+            raise ValueError('No JSON object found')
+        return json.loads(text[start:end + 1])
+
+
 async def _request(system: str, messages: list[dict], json_mode: bool = False) -> ChatOut:
     settings = get_settings()
     key = settings.deepseek_api_key.get_secret_value().strip()
-    if not key:
-        raise HTTPException(503, '模型服务尚未配置，请在后端设置 DeepSeek 密钥和接口地址')
+    host = _host(settings.deepseek_base_url)
+    keyless = _matches(host, KEYLESS_HOSTS)
+    if not key and not keyless:
+        raise HTTPException(503, '模型服务尚未配置，请在后端设置 DEEPSEEK_API_KEY 与 DEEPSEEK_BASE_URL')
     payload = {
         'model': settings.deepseek_model,
         'messages': [{'role': 'system', 'content': system}, *messages],
         'stream': False,
-        'max_tokens': 1600,
-        'thinking': {'type': 'disabled'},
+        # 推理型免费模型（如 GPT-OSS）会先消耗大量 reasoning token，JSON 模式需要更大输出预算
+        'max_tokens': 6000 if json_mode else 1600,
     }
+    # thinking 是 DeepSeek 官方接口的特有参数，其他 OpenAI 兼容平台可能直接报 400，故只在官方域名下发。
+    if _matches(host, DEEPSEEK_HOSTS):
+        payload['thinking'] = {'type': 'disabled'}
+    if _matches(host, KEYLESS_HOSTS):
+        # 免费公共通道是推理模型：降低思考长度，避免输出 token 全被 reasoning 吃光
+        payload['reasoning_effort'] = 'low'
     if json_mode:
         payload['response_format'] = {'type': 'json_object'}
+    headers = {'Authorization': 'Bearer ' + key} if key else {}
     try:
         async with asyncio.timeout(settings.deepseek_timeout_seconds):
             async with _make_client(settings.deepseek_timeout_seconds) as client:
-                response = await client.post(settings.deepseek_base_url + '/chat/completions', headers={'Authorization': 'Bearer ' + key}, json=payload)
+                response = await client.post(settings.deepseek_base_url + '/chat/completions', headers=headers, json=payload)
+                # 部分免费/兼容平台不认 response_format（返回 400/422），此时去掉该参数重试一次，
+                # 由 complete_json 的容错解析兜底；不改变模型与鉴权。
+                if json_mode and response.status_code in (400, 422):
+                    payload.pop('response_format', None)
+                    response = await client.post(settings.deepseek_base_url + '/chat/completions', headers=headers, json=payload)
     except (httpx.TimeoutException, TimeoutError):
         raise HTTPException(504, '模型响应超时，请稍后重试') from None
     except httpx.HTTPError:
         raise HTTPException(502, '无法连接模型服务，请检查后端接口地址和网络') from None
     # Never forward provider bodies or exceptions: either can contain credentials or request content.
     if response.status_code in (401, 403):
-        raise HTTPException(502, 'DeepSeek 鉴权失败，请确认后端密钥与接口地址属于同一平台')
+        raise HTTPException(502, '模型服务鉴权失败，请确认后端密钥与模型接口地址属于同一平台')
     if response.status_code == 402:
-        raise HTTPException(503, '模型服务额度不足，请检查服务平台账户')
+        raise HTTPException(503, '模型服务额度不足或免费通道限速（公共通道约每 45 秒 1 次），请稍后重试')
     if response.status_code == 429:
         raise HTTPException(429, '模型服务请求繁忙，请稍后重试')
     if response.status_code in (400, 404, 422):
@@ -76,7 +129,7 @@ async def _request(system: str, messages: list[dict], json_mode: bool = False) -
         content = choice['message']['content']
         if not isinstance(content, str) or not content.strip():
             raise ValueError('Empty model response')
-        if key in content:
+        if key and key in content:
             raise ValueError('Unexpected credential in response')
         return ChatOut(content=content.strip(), model=settings.deepseek_model, model_label=settings.deepseek_model_label, finish_reason=str(choice.get('finish_reason') or 'stop'))
     except (ValueError, TypeError, KeyError, IndexError):

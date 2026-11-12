@@ -27,7 +27,8 @@ class LLMTests(unittest.IsolatedAsyncioTestCase):
             payload = json.loads(request.content)
             self.assertEqual(payload['model'], 'deepseek-flash')
             self.assertFalse(payload['stream'])
-            self.assertEqual(payload['thinking']['type'], 'disabled')
+            # 第三方 OpenAI 兼容平台不下发 DeepSeek 专有 thinking 参数
+            self.assertNotIn('thinking', payload)
             system = payload['messages'][0]['content']
             self.assertIn('浙江', system)
             self.assertNotIn('PRIVATE_ACCOUNT_NAME', system)
@@ -37,6 +38,52 @@ class LLMTests(unittest.IsolatedAsyncioTestCase):
         result = await self.run_mock(handler, {'current_profile': {'province': '浙江', 'rank': 22580, 'name': 'PRIVATE_ACCOUNT_NAME', 'email': 'PRIVATE_ACCOUNT_EMAIL'}, 'saved_plans': [], 'email': 'PRIVATE_ACCOUNT_EMAIL'})
         self.assertEqual(result.model_label, 'DeepSeek-V4.1-Flash-1017')
         self.assertEqual(result.content, '模拟位次分级并非录取概率。')
+
+    async def test_deepseek_official_keeps_thinking_disabled(self):
+        self.settings.deepseek_base_url = 'https://api.deepseek.com'
+
+        def handler(request):
+            payload = json.loads(request.content)
+            self.assertEqual(payload['thinking'], {'type': 'disabled'})
+            return httpx.Response(200, json={'choices': [{'message': {'content': '好的'}, 'finish_reason': 'stop'}]})
+        await self.run_mock(handler)
+
+    async def test_keyless_public_provider_is_ready_without_secret(self):
+        self.settings.deepseek_api_key = SecretStr('')
+        self.settings.deepseek_base_url = 'https://text.pollinations.ai'
+        self.settings.deepseek_model = 'openai-fast'
+        self.settings.deepseek_model_label = 'GPT-OSS-20B（免费公共通道）'
+        self.assertTrue(llm.provider_ready(self.settings))
+
+        def handler(request):
+            self.assertNotIn('authorization', {key.lower() for key in request.headers})
+            payload = json.loads(request.content)
+            self.assertNotIn('thinking', payload)
+            self.assertEqual(payload['model'], 'openai-fast')
+            self.assertEqual(payload['reasoning_effort'], 'low')
+            self.assertEqual(payload['max_tokens'], 1600)
+            return httpx.Response(200, json={'choices': [{'message': {'content': '免费通道可用。'}, 'finish_reason': 'stop'}]})
+        result = await self.run_mock(handler)
+        self.assertEqual(result.content, '免费通道可用。')
+        self.assertEqual(result.model_label, 'GPT-OSS-20B（免费公共通道）')
+        # 其他无 Key 的第三方平台仍视为未配置
+        self.settings.deepseek_base_url = 'https://provider.invalid/v1'
+        self.assertFalse(llm.provider_ready(self.settings))
+
+    async def test_keyless_provider_json_mode_uses_large_budget(self):
+        self.settings.deepseek_api_key = SecretStr('')
+        self.settings.deepseek_base_url = 'https://text.pollinations.ai/openai'
+
+        def handler(request):
+            payload = json.loads(request.content)
+            self.assertEqual(payload['response_format'], {'type': 'json_object'})
+            self.assertEqual(payload['max_tokens'], 6000)
+            self.assertEqual(payload['reasoning_effort'], 'low')
+            return httpx.Response(200, json={'choices': [{'message': {'content': '```json\n{"group_ids":[1,2]}\n```'}, 'finish_reason': 'stop'}]})
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        with patch.object(llm, 'get_settings', return_value=self.settings), patch.object(llm, '_make_client', return_value=client):
+            output, _ = await llm.complete_json('Return JSON only.', {'allowed': [1, 2]})
+        self.assertEqual(output, {'group_ids': [1, 2]})
 
     async def test_missing_key_never_calls_provider(self):
         self.settings.deepseek_api_key = SecretStr('')

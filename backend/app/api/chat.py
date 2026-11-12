@@ -14,7 +14,7 @@ router = APIRouter(prefix='/chat', tags=['AI 问答'])
 @router.get('/config')
 def config(user: User = Depends(current_user)):
     settings = get_settings()
-    return {'configured': bool(settings.deepseek_api_key.get_secret_value().strip()), 'model_label': settings.deepseek_model_label}
+    return {'configured': llm.provider_ready(settings), 'model_label': settings.deepseek_model_label}
 
 
 @router.post('', response_model=ChatOut)

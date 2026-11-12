@@ -106,21 +106,42 @@ docker compose up -d
 
 然后在 `backend/.env` 填入相同的专用用户密码。Docker 不是运行前后端的必需依赖。
 
-## DeepSeek 大模型配置
+## 大模型配置（免费 / 付费平台可切换）
 
-所有大模型请求（问答、院校精选）统一经过 `backend/app/services/llm.py`，密钥只从 `backend/.env` 读取，不能放入前端、源码或 Git。后端已使用现有 `httpx` 依赖，无需安装额外 SDK。
+所有大模型请求（问答、院校精选）统一经过 `backend/app/services/llm.py`，走 **OpenAI 兼容协议**；密钥只从 `backend/.env` 读取，不能放入前端、源码或 Git。后端已使用现有 `httpx` 依赖，无需安装额外 SDK。换平台 = 改 `.env` 里 3~4 行，代码不用动。
+
+| 平台 | 是否免费 | 是否需要注册 | 速度 | 适合 |
+| --- | --- | --- | --- | --- |
+| Pollinations 公共通道（`text.pollinations.ai`，模型 GPT-OSS-20B） | 免费、无需 Key | 不需要 | 慢（单次 10–90 秒；公共通道约每 45 秒限 1 次） | **默认演示**，开箱即用 |
+| 智谱 `GLM-4-Flash` | 免费 | 需手机号注册拿 Key | 快（数秒） | 日常使用推荐 |
+| ModelScope 魔搭免费推理（如 `Qwen2.5-72B-Instruct`） | 每日免费额度 | 需注册拿 access token | 较快 | 想要更聪明时 |
+| DeepSeek 官方 API | 按量计费 | 需注册充值 | 快 | 正式运营 |
+
+当前仓库默认配置（免注册、零成本，适合演示）：
 
 ```dotenv
-DEEPSEEK_API_KEY=YOUR_DEEPSEEK_API_KEY
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-flash
-DEEPSEEK_MODEL_LABEL=DeepSeek-V4.1-Flash-1017
+DEEPSEEK_API_KEY=
+DEEPSEEK_BASE_URL=https://text.pollinations.ai/openai
+DEEPSEEK_MODEL=openai-fast
+DEEPSEEK_MODEL_LABEL=GPT-OSS-20B（免费公共通道）
+DEEPSEEK_TIMEOUT_SECONDS=150
+```
+
+免费公共通道的取舍（已实测）：问答单次约 20–90 秒、AI 匹配约 10 秒，**同一 IP 约每 45 秒只能调用 1 次**（连续操作会提示「免费通道限速」）；它是推理模型，匹配模式已自动加 `reasoning_effort=low` 并压缩上下文（仅可选的 67 个组、约 19KB），避免输出 token 被思考过程吃光。质量明显强于小模型，但深度不如付费模型，回答仍须核对官方信息、不构成填报建议。
+
+换成免费且更快的智谱 GLM-4-Flash（推荐）：
+
+```dotenv
+DEEPSEEK_API_KEY=<智谱 API Key>
+DEEPSEEK_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+DEEPSEEK_MODEL=glm-4-flash
+DEEPSEEK_MODEL_LABEL=GLM-4-Flash（免费）
 DEEPSEEK_TIMEOUT_SECONDS=60
 ```
 
-按 [DeepSeek 官方模型说明](https://api-docs.deepseek.com/quick_start/pricing/)，`DeepSeek-V4.1-Flash-1017` 的官方 API 模型标识为 `deepseek-flash`。页面显示完整模型名，实际请求使用 API 标识；前端不能自行选择或覆盖模型。后续新增大模型功能应复用同一调用层。
+其他 OpenAI 兼容平台同理：填写该平台的 HTTPS Base URL（不含 `/chat/completions`）、Key 与模型标识，不要混用。`.env.example` 里已给出 Pollinations / 智谱 / ModelScope / DeepSeek 官方四组示例。公共通道不需要 Key 也视为已配置；其他平台没配 Key 时，其他页面仍可运行，问答接口会明确提示服务未配置，鉴权、额度、模型不支持或超时错误不会伪装成 AI 回答。免费公共通道有速率限制且不保证稳定性，正式上线建议换成自己账号的免费额度平台或官方 API。
 
-修改 `.env` 后重新启动 `start.bat`。如果使用其他服务平台，须使用该平台对应的 HTTPS Base URL（不含 `/chat/completions`）、密钥和模型标识，不要混用。没有配置密钥时，其他页面仍可运行，问答接口会明确提示服务未配置；鉴权、额度、模型不支持或超时错误不会伪装成 AI 回答。
+页面显示的是 `DEEPSEEK_MODEL_LABEL`，实际请求使用 `DEEPSEEK_MODEL`；前端不能自行选择或覆盖模型。后续新增大模型功能应复用同一调用层。
 
 问答通过 [问答 SKILL.md](backend/app/skills/chat-advisor/SKILL.md) 定义资料使用和事实边界。默认附带当前登录账号的最新考生画像（省份、年份、分数、位次、选科和偏好），以及最近最多 10 份已保存方案的完整志愿顺序、院校专业组信息、风险分布和保存时的画像快照；不发送账号名、邮箱、密码或账号 ID。可分别关闭画像或方案引用，也可从最近 50 份方案中指定最多 10 份。更改引用范围会清空当前对话，避免旧消息继续携带已关闭的资料。
 

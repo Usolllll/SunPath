@@ -38,13 +38,25 @@ def selection_context(db, profile, count):
     catalog = []
     for group in groups:
         item = by_id.get(group.id) or serialize_group(group, profile.province, profile.exam_year)
+        if item['id'] not in by_id:
+            continue  # 不可选的专业组只给 ID 列表，不占上下文
+        university = item['university']
+        # 上下文只保留模型选组需要的最小事实（ID/梯度/位次区间/专业/计划），
+        # 避免给免费公共通道或小上下文模型塞入几十 KB 的冗余文本。
         catalog.append({
-            'group_id': item['id'], 'code': item['code'], 'group_name': item['name'],
-            'university': {key: item['university'][key] for key in ('id', 'name', 'city', 'region', 'level', 'category', 'description')},
-            'majors': item['majors'], 'required_subjects': item['required_subjects'],
-            'tuition': item['tuition'], 'history': item['history'], 'seats': item['seats'],
-            'province': item['province'], 'year': item['year'], 'eligible': item['id'] in by_id,
-            **{key: item[key] for key in ('risk', 'baseline_rank', 'rank_ratio', 'history_rank_min', 'history_rank_max', 'volatility') if key in item},
+            'group_id': item['id'],
+            'group_name': item['name'],
+            'university_id': university['id'],
+            'university': university['name'],
+            'city': university.get('city'),
+            'region': university.get('region'),
+            'level': university.get('level'),
+            'majors': (item['majors'] or [])[:6],
+            'required_subjects': item['required_subjects'],
+            'seats': item['seats'],
+            'risk': item.get('risk'),
+            'history_rank_min': item.get('history_rank_min'),
+            'history_rank_max': item.get('history_rank_max'),
         })
     target = min(count, len(eligible))
     context = {
@@ -55,6 +67,7 @@ def selection_context(db, profile, count):
         'data_label': '全部录取与计划资料为模拟样本',
         'limits': {'requested_count': count, 'required_count': target, 'minimum_count': min(3, len(eligible)), 'maximum_count': min(30, len(eligible))},
         'risk_quotas': quotas, 'eligible_group_ids': list(by_id), 'catalog': catalog,
+        'ineligible_group_ids': [group.id for group in groups if group.id not in by_id],
         'eligible_buckets': {risk: {'required_count': quotas[risk], 'allowed_ids': [item['id'] for item in eligible if item['risk'] == risk]} for risk in RISKS},
     }
     return context, by_id
@@ -111,7 +124,7 @@ async def match_universities(db, profile, count=12):
             'model_label': model_label, 'skill': 'match-universities', 'requested_count': count,
             'attempts': attempts,
             'selected_count': len(selected), 'eligible_count': len(by_id),
-            'catalog_universities': len({item['university']['id'] for item in context['catalog']}),
+            'catalog_universities': len({item['university_id'] for item in context['catalog']}),
             'catalog_groups': len(context['catalog']), 'selected_universities': len({item['university']['id'] for item in selected}),
             'minimum_count': 3, 'maximum_count': 30, 'below_minimum': below_minimum,
             'missing_tiers': [risk for risk in RISKS if not counts[risk]],
