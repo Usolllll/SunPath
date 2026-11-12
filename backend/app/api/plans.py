@@ -9,14 +9,15 @@ v3 语义：
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import current_user
 from app.models.entities import Plan, User
-from app.schemas.dto import PlanIn, ProfileIn
+from app.schemas.dto import ImportPlanIn, PlanIn, ProfileIn
+from app.services import plan_import
 from app.services.audit import log_action
 from app.services.catalog import require_profile
 from app.services.notices import create_message
@@ -92,6 +93,58 @@ def create(body: PlanIn, response: Response, request: Request,
                detail={'batch': body.batch, 'item_count': len(items)}, request=request)
     db.commit()
     return serialize_plan(plan)
+
+
+@router.get('/import/template')
+def import_template(user: User = Depends(current_user)):
+    """志愿表导入模板（CSV，UTF-8 BOM，含两行示例，便于 Excel 直接打开）。"""
+    content = plan_import.template_csv().encode('utf-8')
+    return Response(
+        content=b'\xef\xbb\xbf' + content,
+        media_type='text/csv; charset=utf-8',
+        headers={'Content-Disposition': 'attachment; filename="sunpath-plan-template.csv"'},
+    )
+
+
+@router.post('/import', status_code=201)
+def import_plan(body: ImportPlanIn, request: Request, user: User = Depends(current_user),
+                db: Session = Depends(get_db)):
+    """导入志愿表 CSV：合法行生成草案方案，非法行逐行返回原因（允许部分成功）。"""
+    try:
+        rows = plan_import.read_rows(body.content)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from None
+    if not rows:
+        raise HTTPException(400, '表格没有数据行，请使用导入模板填写')
+    if len(rows) > plan_import.MAX_ROWS:
+        raise HTTPException(400, f'单次最多导入 {plan_import.MAX_ROWS} 行，请拆分后重试')
+    profile = require_profile(user)
+    available = {item['id']: item for item in recommend(db, profile)}
+    accepted, errors = plan_import.validate(db, rows, set(available))
+    report = {'total': len(rows), 'imported': len(accepted), 'rejected': len(errors), 'errors': errors}
+    if not accepted:
+        return JSONResponse(status_code=400, content={
+            'detail': '没有可导入的行，请根据校验报告修改后重试',
+            'report': report,
+        })
+    name = body.name or f'导入方案 {datetime.now().strftime("%m-%d %H:%M")}'
+    group_ids = [row['group_id'] for row in accepted]
+    items, profile_snapshot = build_snapshot(
+        db, user, PlanIn(name=name, group_ids=group_ids, batch=body.batch))
+    risks = {row['group_id']: row['risk'] for row in accepted if row.get('risk')}
+    if risks:
+        for item in items:
+            if item.get('id') in risks:
+                item['risk'] = risks[item['id']]
+    plan = Plan(user_id=user.id, name=name, items=items, profile_snapshot=profile_snapshot,
+                batch=body.batch, status=DRAFT)
+    db.add(plan)
+    db.flush()
+    log_action(db, user, 'plan.import', target=f'plan:{plan.id}',
+               detail={'batch': body.batch, 'imported': len(accepted), 'rejected': len(errors)},
+               request=request)
+    db.commit()
+    return {'plan': serialize_plan(plan), 'report': report}
 
 
 @router.get('/{plan_id}')

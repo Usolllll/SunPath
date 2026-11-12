@@ -147,6 +147,22 @@ class PlanIn(BaseModel):
             raise ValueError('方案中不能重复添加同一专业组')
         return v
 
+class ImportPlanIn(BaseModel):
+    """志愿表 CSV 导入：name 可选（缺省自动命名），content 为整份 CSV 文本。"""
+    name: str | None = Field(default=None, max_length=80)
+    batch: Literal['本科批', '专科批'] = '本科批'
+    content: str = Field(min_length=1, max_length=200000)
+
+    @field_validator('name')
+    @classmethod
+    def import_name(cls, v):
+        if v is None:
+            return None
+        value = v.strip()
+        if not value:
+            raise ValueError('方案名称不能为空')
+        return value
+
 class FavoriteIn(BaseModel):
     """收藏院校；只收院校 id，院校是否存在由接口校验。"""
     university_id: int = Field(gt=0)
