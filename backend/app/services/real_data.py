@@ -1,4 +1,10 @@
-"""真实投档数据查询（与一期模拟数据物理隔离；只读官方字段，逐条带来源）。"""
+"""真实投档数据查询（与一期模拟数据物理隔离；只读官方字段，逐条带来源）。
+
+数据既有省级投档线，也有专业级投档/招生计划（parser_version 区分）。院校级
+查询（school_official）对同一院校同一年代的多专业行做聚合：取 **最大 min_rank**
+（最靠后的最低位次）作为院校投档最低位次的保守口径，用 major_level / aggregated_rows
+标明这是专业级数据的聚合结果。
+"""
 from sqlalchemy import func, select
 
 from app.models.entities import DataVersion, RealAdmission
@@ -32,10 +38,15 @@ def summary(db):
         })
     provinces = []
     for row in rows:
+        parser_versions = [value[0] for value in db.execute(
+            select(RealAdmission.parser_version).where(RealAdmission.province == row.province)
+            .distinct().order_by(RealAdmission.parser_version)
+        ).all()]
         provinces.append({
             'province': row.province, 'rows': row.rows, 'schools': row.schools,
             'years': years.get(row.province, []),
             'published_at': row.published_at,
+            'parser_versions': parser_versions,
             'versions': versions.get(row.province, []),
         })
     return {
@@ -60,10 +71,13 @@ def list_rows(db, province, year=None, query='', page=1, page_size=50):
     return {
         'total': total,
         'items': [{
-            'id': row.id, 'school_name': row.school_name, 'exam_year': row.exam_year,
-            'subject_type': row.subject_type, 'batch': row.batch, 'round_no': row.round_no,
-            'group_name': row.group_name, 'major_name': row.major_name,
+            'id': row.id, 'school_name': row.school_name, 'national_code': row.national_code,
+            'exam_year': row.exam_year, 'subject_type': row.subject_type,
+            'admission_type': row.admission_type, 'batch': row.batch, 'round_no': row.round_no,
+            'group_code': row.group_code, 'group_name': row.group_name, 'major_name': row.major_name,
             'min_score': row.min_score, 'min_rank': row.min_rank,
+            'max_score': row.max_score, 'avg_score': row.avg_score,
+            'actual_count': row.actual_count, 'plan_count': row.plan_count,
             'required_subjects': row.required_subjects,
             'source_url': row.source_url, 'published_at': row.published_at,
         } for row in rows],
@@ -72,25 +86,45 @@ def list_rows(db, province, year=None, query='', page=1, page_size=50):
 
 
 def school_official(db, school_name, province):
-    """该校该省最近一年的真实投档最低位次（用于与模拟参考位次做"官方核对"）。"""
-    row = db.scalars(
-        select(RealAdmission)
-        .where(RealAdmission.school_name == school_name, RealAdmission.province == province,
-               RealAdmission.min_rank.is_not(None))
-        .order_by(RealAdmission.exam_year.desc(), RealAdmission.min_rank)
-    ).first()
-    if not row:
+    """该校该省最近一年真实投档数据的院校级代表值。
+
+    专业级数据（一个院校同一年多专业/多专业组行）取 **最大 min_rank** 作为
+    院校投档最低位次的保守口径（最靠后的最低位次），并返回 major_level /
+    aggregated_rows 说明聚合口径。
+    """
+    latest_year = db.scalar(
+        select(func.max(RealAdmission.exam_year)).where(
+            RealAdmission.school_name == school_name,
+            RealAdmission.province == province,
+            RealAdmission.min_rank.is_not(None),
+        )
+    )
+    if latest_year is None:
         return None
+    rows = db.scalars(
+        select(RealAdmission).where(
+            RealAdmission.school_name == school_name,
+            RealAdmission.province == province,
+            RealAdmission.exam_year == latest_year,
+            RealAdmission.min_rank.is_not(None),
+        )
+    ).all()
+    if not rows:
+        return None
+    # 最大 min_rank = 该校该年最靠后的最低位次（保守的院校投档最低位次）
+    representative = max(rows, key=lambda row: (row.min_rank, row.id or 0))
     return {
-        'exam_year': row.exam_year,
-        'subject_type': row.subject_type,
-        'group_name': row.group_name,
-        'major_name': row.major_name,
-        'min_score': row.min_score,
-        'min_rank': row.min_rank,
-        'source_url': row.source_url,
-        'published_at': row.published_at,
+        'exam_year': representative.exam_year,
+        'subject_type': representative.subject_type,
+        'group_name': representative.group_name,
+        'major_name': representative.major_name,
+        'min_score': representative.min_score,
+        'min_rank': representative.min_rank,
+        'source_url': representative.source_url,
+        'published_at': representative.published_at,
         'data_label': '官方投档数据',
+        'major_level': True,
+        'aggregated_rows': len(rows),
     }
 
 

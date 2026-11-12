@@ -175,7 +175,9 @@ def budget_estimate(group_id: int = Query(...), user: User = Depends(current_use
             'disclaimer': '生活费为按城市等级的估算值（非官方数据）；学费/住宿费来自采集字段，正式填报请以招生章程为准。'}
 
 # ---------------------------------------------------------------- 真实投档数据（官方来源，只读）
-REAL_PROVINCES = ['辽宁', '贵州', '黑龙江']
+def _real_provinces(db: Session) -> list[str]:
+    """已收录的官方真实数据省份（随导入动态变化，不再写死）。"""
+    return [item['province'] for item in real_data.summary(db)['provinces']]
 
 
 @router.get('/real-data/summary')
@@ -188,7 +190,7 @@ def real_data_summary(db: Session = Depends(get_db)):
 def real_data_rows(province: str = Query(...), year: int | None = Query(None, ge=2020, le=2030),
                    q: str = Query('', max_length=40), page: int = Query(1, ge=1),
                    page_size: int = Query(50, ge=1, le=200), db: Session = Depends(get_db)):
-    if province not in REAL_PROVINCES:
+    if province not in _real_provinces(db):
         raise HTTPException(422, '该省的官方投档数据尚未收录')
     return real_data.list_rows(db, province, year, q, page, page_size)
 
@@ -196,7 +198,7 @@ def real_data_rows(province: str = Query(...), year: int | None = Query(None, ge
 @router.get('/real-data/school')
 def real_data_school(name: str = Query(..., min_length=1, max_length=80), province: str = Query(...),
                      db: Session = Depends(get_db)):
-    if province not in REAL_PROVINCES:
+    if province not in _real_provinces(db):
         raise HTTPException(422, '该省的官方投档数据尚未收录')
     official = real_data.school_official(db, name, province)
     if not official:
