@@ -37,10 +37,13 @@ import type {
   MessageUnread,
   MessageRefreshResult,
   MessageSubscription,
+  MapConfig,
 } from "./types";
 export const api = {
   chatConfig: () =>
     http.get<{ configured: boolean; model_label: string }>("/chat/config"),
+  /** 地图运行时配置：Key 由后端 .env 提供，部署方换 Key 不必重新构建前端 */
+  mapConfig: () => http.get<MapConfig>("/map/config"),
   chatContext: () => http.get<ChatAvailableContext>("/chat/context"),
   chat: (
     messages: ChatMessage[],

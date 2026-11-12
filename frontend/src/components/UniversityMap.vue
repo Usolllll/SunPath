@@ -2,6 +2,7 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import { Maximize2, RefreshCw, MapPin, ShieldCheck } from "lucide-vue-next";
 import type { CatalogUniversity } from "../api/types";
+import { api } from "../api";
 import { hasTiandituKey, loadTianditu } from "../utils/tianditu";
 import { createUniversityMap } from "../utils/universityMap";
 
@@ -12,8 +13,11 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [id: number] }>();
 const host = ref<HTMLDivElement>();
 const located = computed(() => props.schools.filter((s) => s.location));
-const key = (import.meta.env.VITE_TIANDITU_KEY || "").trim();
-const configured = hasTiandituKey(key);
+// Key 优先级：后端 /api/map/config（部署方在 backend/.env 配置，换 Key 不必重新构建前端）
+// → 构建期 VITE_TIANDITU_KEY（纯静态部署的兜底）。
+const key = ref("");
+const resolving = ref(true);
+const configured = computed(() => hasTiandituKey(key.value));
 const ready = ref(false);
 const loading = ref(false);
 const error = ref("");
@@ -23,8 +27,18 @@ let adapter: ReturnType<typeof createUniversityMap> | undefined;
 let resize: ResizeObserver | undefined;
 let disposed = false;
 
+async function resolveKey(): Promise<string> {
+  try {
+    const { data: config } = await api.mapConfig();
+    if (config.configured && hasTiandituKey(config.key)) return config.key.trim();
+  } catch {
+    // 后端不可用时回退构建期变量，静态部署仍可工作
+  }
+  return (import.meta.env.VITE_TIANDITU_KEY || "").trim();
+}
+
 async function initialize() {
-  if (!configured || loading.value || disposed) return;
+  if (!configured.value || loading.value || disposed) return;
   loading.value = true;
   ready.value = false;
   error.value = "";
@@ -33,7 +47,7 @@ async function initialize() {
   adapter = undefined;
   host.value?.replaceChildren();
   try {
-    const T = await loadTianditu(key);
+    const T = await loadTianditu(key.value);
     if (disposed || !host.value) return;
     adapter = createUniversityMap(T, mapId, (id) => emit("select", id));
     adapter.update(props.schools, props.selectedId);
@@ -55,13 +69,15 @@ function onResourceError(event: Event) {
   )
     tileFailed.value = true;
 }
-onMounted(() => {
+onMounted(async () => {
   host.value?.addEventListener("error", onResourceError, true);
   resize = new ResizeObserver(() => {
     adapter?.resize();
     if (props.selectedId === null) adapter?.fit();
   });
   if (host.value) resize.observe(host.value);
+  key.value = await resolveKey();
+  resolving.value = false;
   void initialize();
 });
 watch(
@@ -103,7 +119,7 @@ onBeforeUnmount(() => {
         <Maximize2 :size="15" />显示全部
       </button>
       <div
-        v-if="!configured || error || loading"
+        v-if="resolving || !configured || error || loading"
         class="map-state"
         role="status"
       >
@@ -112,20 +128,23 @@ onBeforeUnmount(() => {
         /></span>
         <h3>
           {{
-            !configured
-              ? "天地图服务待启用"
-              : loading
-                ? "正在加载天地图"
-                : "地图暂时无法加载"
+            resolving
+              ? "正在加载地图配置"
+              : !configured
+                ? "天地图服务待启用"
+                : loading
+                  ? "正在加载天地图"
+                  : "地图暂时无法加载"
           }}
         </h3>
-        <p v-if="!configured">
+        <p v-if="resolving">正在读取后端地图配置，请稍候。</p>
+        <p v-else-if="!configured">
           请联系管理员配置天地图 Web 端 Key。院校列表和招生查询仍可正常使用。
         </p>
         <p v-else-if="loading">正在连接天地图官方地图服务，请稍候。</p>
         <p v-else>{{ error }}</p>
         <a
-          v-if="!configured"
+          v-if="!resolving && !configured"
           href="https://console.tianditu.gov.cn/"
           target="_blank"
           rel="noopener noreferrer"
@@ -156,7 +175,8 @@ onBeforeUnmount(() => {
           rel="noopener noreferrer"
           >天地图</a
         ></span
-      ><span class="cluster-hint">点击聚合标记可展开</span>
+      ><span class="cluster-hint">点击聚合标记可展开</span
+      ><span class="wheel-hint">滚轮缩放</span>
     </div>
   </div>
 </template>
@@ -335,6 +355,9 @@ onBeforeUnmount(() => {
     height: 350px;
   }
   .cluster-hint {
+    display: none !important;
+  }
+  .wheel-hint {
     display: none !important;
   }
   .map-caption,

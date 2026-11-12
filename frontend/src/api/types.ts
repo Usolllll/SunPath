@@ -608,3 +608,12 @@ export interface MessageSubscription {
   channel: string;
   lead_days: number;
 }
+
+/** GET /map/config：地图运行时配置（部署方自己的天地图 Key，换 Key 无需重新构建前端） */
+export interface MapConfig {
+  provider: string;
+  configured: boolean;
+  key: string;
+  attribution: string;
+  console_url: string;
+}

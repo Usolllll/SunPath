@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.database import engine
-from app.api import auth, data, favorites, plans, chat, ops, process, notices, messages
+from app.api import auth, data, favorites, plans, chat, ops, process, notices, messages, map as map_api
 
 @asynccontextmanager
 async def lifespan(app):
@@ -21,6 +21,7 @@ app.include_router(ops.router, prefix='/api')
 app.include_router(process.router, prefix='/api')
 app.include_router(notices.router, prefix='/api')
 app.include_router(messages.router, prefix='/api')
+app.include_router(map_api.router, prefix='/api')
 
 @app.get('/api/health', tags=['运行状态'])
 def health():
