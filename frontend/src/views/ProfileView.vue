@@ -17,7 +17,13 @@ import {
 import { ElMessage } from "element-plus/es/components/message/index";
 import { api } from "../api";
 import { useAuth } from "../stores/auth";
-import type { PriorityMode, Profile, ProfileCompleteness } from "../api/types";
+import type {
+  PriorityMode,
+  Profile,
+  ProfileCompleteness,
+  ScoreSegment,
+} from "../api/types";
+import { number } from "../utils/format";
 import CoverageCard from "../components/CoverageCard.vue";
 import InterestRadar from "../components/InterestRadar.vue";
 import {
@@ -122,7 +128,45 @@ onMounted(async () => {
     /* API handles error */
   }
   void loadCompleteness();
+  void loadSegment();
 });
+
+// M4-02 一分一段（示例数据，位次参考）：分数 → 累计人数/位次
+const segment = ref<ScoreSegment | null>(null);
+const segmentNote = ref("");
+const segmentLoading = ref(false);
+let segmentTimer: ReturnType<typeof setTimeout> | undefined;
+
+async function loadSegment() {
+  segmentLoading.value = true;
+  try {
+    segment.value = (
+      await api.scoreSegment(form.province, form.exam_year, form.score)
+    ).data;
+    segmentNote.value = "";
+  } catch {
+    segment.value = null;
+    segmentNote.value =
+      "该省/年份暂未收录一分一段数据，可继续手动填写位次。";
+  } finally {
+    segmentLoading.value = false;
+  }
+}
+function queueSegment() {
+  if (segmentTimer) clearTimeout(segmentTimer);
+  segmentTimer = setTimeout(() => void loadSegment(), 350);
+}
+function applyRank() {
+  if (!segment.value) return;
+  form.rank = segment.value.rank_estimate;
+  ElMessage.success(
+    `已按一分一段参考位次填写：${segment.value.rank_estimate}`,
+  );
+}
+watch(
+  [() => form.province, () => form.exam_year, () => form.score],
+  queueSegment,
+);
 const complete = computed(() => form.subjects.length === 3 && form.rank > 0);
 watch(priorityMode, (value) => {
   form.priority_mode = value;
@@ -205,6 +249,19 @@ async function save() {
           /><small>位次越小，排名越靠前</small></label
         >
       </div>
+      <div v-if="segment" class="segment-hint">
+        <Info :size="14" />
+        <span
+          >一分一段参考（{{ segment.data_mode }}数据）：{{ segment.score }} 分约
+          <strong>{{ number(segment.rank_estimate) }}</strong>
+          名，位次约在全省前 {{ percent(segment.percentile) }}；该分数及以上累计
+          {{ number(segment.cumulative) }} 人</span
+        >
+        <button type="button" class="segment-apply" @click="applyRank">
+          用参考位次填写
+        </button>
+      </div>
+      <p v-else-if="segmentNote" class="muted segment-note">{{ segmentNote }}</p>
       <label class="field-label"
         >选考科目
         <span class="muted">已选 {{ form.subjects.length }} / 3</span></label
@@ -505,4 +562,38 @@ async function save() {
   font-size: 10px;
   flex-shrink: 0;
 }
+
+.segment-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0 2px;
+  padding: 10px 12px;
+  border: 1px dashed #cddcea;
+  border-radius: 10px;
+  background: #f7fafd;
+  color: #4b6b89;
+  font-size: 12px;
+}
+.segment-hint strong {
+  color: #1f3a56;
+}
+.segment-apply {
+  margin-left: auto;
+  border: 1px solid #b9cade;
+  background: #fff;
+  color: #3573b7;
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.segment-apply:hover {
+  background: #eef4fb;
+}
+.segment-note {
+  margin-top: 8px;
+}
+
 </style>

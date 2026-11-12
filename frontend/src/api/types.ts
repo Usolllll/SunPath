@@ -180,6 +180,25 @@ export interface PhysicalFlag {
 }
 /** 方案批次（RTM）：本科批 / 专科批 */
 export type PlanBatch = "本科批" | "专科批";
+/** 志愿表导入：逐行校验结果与报告 */
+export interface PlanImportRowError {
+  line: number;
+  school?: string;
+  group?: string;
+  risk_label?: string;
+  note?: string;
+  reason: string;
+}
+export interface PlanImportReport {
+  total: number;
+  imported: number;
+  rejected: number;
+  errors: PlanImportRowError[];
+}
+export interface PlanImportResult {
+  plan: Plan;
+  report: PlanImportReport;
+}
 /** 方案状态（RTM）：草稿可编辑；已提交需先撤回才能编辑 */
 export type PlanStatus = "draft" | "submitted";
 export interface Plan {
@@ -616,4 +635,78 @@ export interface MapConfig {
   key: string;
   attribution: string;
   console_url: string;
+}
+
+
+/** GET /score-segment：一分一段位次参考（示例数据，非录取概率） */
+export interface ScoreSegment {
+  province: string;
+  exam_year: number;
+  subject_type: string;
+  score: number;
+  count: number;
+  cumulative: number;
+  rank_estimate: number;
+  percentile: number;
+  source_url: string;
+  published_at: string;
+  data_mode: string;
+  note: string;
+  disclaimer: string;
+  total_candidates?: number;
+}
+export interface ScoreSegmentList {
+  province: string;
+  exam_year: number;
+  subject_type: string;
+  total: number;
+  direction: string;
+  segments: { score: number; count: number; cumulative: number }[];
+  source_url: string;
+  published_at: string;
+  data_mode: string;
+  note: string;
+  disclaimer: string;
+}
+
+
+/** GET /ops/*：运营看板（仅管理员；数据来自审计日志与已保存方案） */
+export interface OpsBehaviorDay {
+  date: string;
+  register: number;
+  plan_create: number;
+  plan_submit: number;
+  result_query: number;
+  favorite_add: number;
+}
+export interface OpsBehaviorTotals {
+  register: number;
+  plan_create: number;
+  plan_submit: number;
+  result_query: number;
+  favorite_add: number;
+}
+export interface OpsBehavior {
+  days: number;
+  series: OpsBehaviorDay[];
+  totals: OpsBehaviorTotals;
+  note: string;
+}
+export interface OpsTierDistribution {
+  total_plans: number;
+  tiers: { reach: number; steady: number; safe: number };
+  by_batch: { batch: string; reach: number; steady: number; safe: number }[];
+  note: string;
+}
+export interface OpsReport {
+  generated_at: string;
+  period_days: number;
+  users: { total: number; new_in_period: number };
+  plans: { total: number; submitted: number; new_in_period: number };
+  favorites: { total: number };
+  messages: { total: number; unread: number };
+  tiers: { reach: number; steady: number; safe: number };
+  behavior_totals: OpsBehaviorTotals;
+  quality: Record<string, unknown>;
+  note: string;
 }

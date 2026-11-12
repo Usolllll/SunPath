@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import {
   ArrowUpRight,
   Database,
+  Download,
   Info,
   RefreshCw,
   ShieldCheck,
@@ -11,10 +12,18 @@ import {
   AlertCircle,
   CheckCircle2,
 } from "lucide-vue-next";
+import { ElMessage } from "element-plus/es/components/message/index";
 import { useRouter } from "vue-router";
 import { api } from "../api";
-import type { DataQuality, PatrolItem, PopularityItem } from "../api/types";
-import { date, number } from "../utils/format";
+import type {
+  DataQuality,
+  OpsBehavior,
+  OpsReport,
+  OpsTierDistribution,
+  PatrolItem,
+  PopularityItem,
+} from "../api/types";
+import { date, downloadBlob, number } from "../utils/format";
 import { coverageText, safeSourceUrl, yearSpan } from "../utils/realdata";
 import { patrolCheckedText } from "../utils/rtm";
 const router = useRouter();
@@ -79,7 +88,70 @@ function patrolState(item: PatrolItem) {
 function patrolHttpStatus(item: PatrolItem) {
   return item.status == null ? "" : `HTTP ${item.status}`;
 }
-onMounted(load);
+onMounted(() => {
+  void load();
+  void loadOps();
+});
+
+// M9 运营看板（仅管理员）：行为统计、梯度分布与运营报表导出
+const opsDays = ref(30);
+const opsReport = ref<OpsReport | null>(null);
+const opsBehavior = ref<OpsBehavior | null>(null);
+const opsTiers = ref<OpsTierDistribution | null>(null);
+const opsBusy = ref(false);
+const opsForbidden = ref(false);
+const opsFailed = ref(false);
+const exporting = ref(false);
+const behaviorRows = computed(() => (opsBehavior.value?.series ?? []).slice(-7));
+const opsTierItems = computed(() => {
+  const tiers = opsTiers.value?.tiers;
+  return [
+    { key: "reach", label: "冲", value: tiers?.reach ?? 0 },
+    { key: "steady", label: "稳", value: tiers?.steady ?? 0 },
+    { key: "safe", label: "保", value: tiers?.safe ?? 0 },
+  ];
+});
+
+async function loadOps() {
+  opsBusy.value = true;
+  opsForbidden.value = false;
+  opsFailed.value = false;
+  try {
+    const [report, behavior, tiers] = await Promise.all([
+      api.opsReport(opsDays.value),
+      api.opsBehavior(opsDays.value),
+      api.opsTierDistribution(),
+    ]);
+    opsReport.value = report.data;
+    opsBehavior.value = behavior.data;
+    opsTiers.value = tiers.data;
+  } catch (error: unknown) {
+    const status = (error as { response?: { status?: number } }).response
+      ?.status;
+    opsForbidden.value = status === 403;
+    opsFailed.value = !opsForbidden.value;
+    opsReport.value = null;
+    opsBehavior.value = null;
+    opsTiers.value = null;
+  } finally {
+    opsBusy.value = false;
+  }
+}
+
+async function exportReport() {
+  if (!opsReport.value) return;
+  exporting.value = true;
+  try {
+    const { data } = await api.opsReportExport(opsDays.value);
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    downloadBlob(data, `sunpath-report-${stamp}.csv`);
+    ElMessage.success("运营报表已导出");
+  } catch {
+    ElMessage.error("报表导出失败，请稍后重试");
+  } finally {
+    exporting.value = false;
+  }
+}
 </script>
 <template>
   <div class="page-heading">
@@ -143,6 +215,84 @@ onMounted(load);
         </div>
         <p class="quality-note">
           模拟数据只用于演示匹配与冲稳保分级，不代表真实招生或录取结果。
+        </p>
+      </section>
+      <section class="panel quality-card quality-wide ops-card">
+        <div class="quality-card-head">
+          <h3><Activity :size="16" />运营看板</h3>
+          <span class="tag subtle">仅管理员可见</span>
+        </div>
+        <div v-if="opsForbidden" class="quality-note">
+          当前账号没有运营数据权限（仅管理员可见）。个人数据可在「我的志愿方案」查看。
+        </div>
+        <template v-else-if="opsReport">
+          <div class="ops-metrics">
+            <div>
+              <strong>{{ number(opsReport.users.total) }}</strong
+              ><span>用户总数</span
+              ><em>近 {{ opsReport.period_days }} 天新增 {{ number(opsReport.users.new_in_period) }}</em>
+            </div>
+            <div>
+              <strong>{{ number(opsReport.plans.total) }}</strong
+              ><span>方案总数</span
+              ><em>已提交 {{ number(opsReport.plans.submitted) }}</em>
+            </div>
+            <div>
+              <strong>{{ number(opsReport.favorites.total) }}</strong
+              ><span>收藏总数</span><em>—</em>
+            </div>
+            <div>
+              <strong>{{ number(opsReport.messages.total) }}</strong
+              ><span>站内消息</span
+              ><em>未读 {{ number(opsReport.messages.unread) }}</em>
+            </div>
+          </div>
+          <div class="ops-tier-row">
+            <span
+              v-for="item in opsTierItems"
+              :key="item.key"
+              class="ops-tier"
+              :class="item.key"
+              >{{ item.label }} {{ number(item.value) }} 个</span
+            >
+            <span class="muted"
+              >共 {{ number(opsTiers?.total_plans ?? 0) }} 份方案</span
+            >
+          </div>
+          <el-table
+            :data="behaviorRows"
+            size="small"
+            class="ops-behavior-table"
+          >
+            <el-table-column prop="date" label="日期（UTC）" width="120" />
+            <el-table-column prop="register" label="注册" width="70" />
+            <el-table-column prop="plan_create" label="建方案" width="80" />
+            <el-table-column prop="plan_submit" label="提交" width="70" />
+            <el-table-column prop="result_query" label="结果查询" width="90" />
+            <el-table-column prop="favorite_add" label="收藏" width="70" />
+          </el-table>
+          <p class="quality-note">
+            统计来自审计日志（最近 7 天）；梯度分布按已保存方案的冲/稳/保标记统计。
+            报表导出为 CSV，导出动作会写入审计。
+          </p>
+          <div class="ops-actions">
+            <el-button :loading="exporting" @click="exportReport"
+              ><Download :size="14" />导出运营报表</el-button
+            >
+            <el-select
+              v-model="opsDays"
+              style="width: 120px"
+              @change="loadOps"
+            >
+              <el-option :value="7" label="近 7 天" />
+              <el-option :value="30" label="近 30 天" />
+              <el-option :value="90" label="近 90 天" />
+            </el-select>
+          </div>
+        </template>
+        <p v-else-if="opsBusy" class="quality-note">正在加载运营数据…</p>
+        <p v-else-if="opsFailed" class="quality-note">
+          运营数据加载失败，请点击右上角「刷新」重试。
         </p>
       </section>
       <section class="panel quality-card quality-wide">
@@ -535,4 +685,81 @@ onMounted(load);
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.ops-card {
+  grid-column: 1 / -1;
+}
+.ops-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 4px 0 14px;
+}
+.ops-metrics > div {
+  background: #f6f9fc;
+  border: 1px solid #e6edf4;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ops-metrics strong {
+  font-size: 22px;
+  color: #1f3a56;
+}
+.ops-metrics span {
+  font-size: 12px;
+  color: #5d7590;
+}
+.ops-metrics em {
+  font-size: 10px;
+  color: #8a9db2;
+  font-style: normal;
+}
+.ops-tier-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.ops-tier {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #dbe6f1;
+  background: #fff;
+  color: #35506b;
+}
+.ops-tier.reach {
+  border-color: #f0cfa4;
+  background: #fdf3e6;
+  color: #9a6a1f;
+}
+.ops-tier.steady {
+  border-color: #b9d3ec;
+  background: #eef5fc;
+  color: #2f6091;
+}
+.ops-tier.safe {
+  border-color: #bfe2c8;
+  background: #eef9f1;
+  color: #2f7a46;
+}
+.ops-behavior-table {
+  margin-bottom: 6px;
+}
+.ops-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+@media (max-width: 760px) {
+  .ops-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 </style>

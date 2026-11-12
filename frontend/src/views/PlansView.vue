@@ -11,12 +11,13 @@ import {
   Info,
   Lock,
   Eye,
+  Upload,
 } from "lucide-vue-next";
 import { ElMessage } from "element-plus/es/components/message/index";
 import { ElMessageBox } from "element-plus/es/components/message-box/index";
 import { useRouter } from "vue-router";
 import { api } from "../api";
-import type { Plan, Group } from "../api/types";
+import type { Plan, Group, PlanBatch, PlanImportReport } from "../api/types";
 import { usePlanner } from "../stores/planner";
 import { date, riskLabels, exportPlan, number } from "../utils/format";
 import { SUBMIT_LOCK_MESSAGE, planBatchLabel, planStatusLabel } from "../utils/rtm";
@@ -32,6 +33,70 @@ const previewOpen = ref(false);
 const detail = ref<Group | null>(null);
 const drawer = ref(false);
 const downloading = ref<number | null>(null);
+// 志愿表导入（RTM FR-M6-04）：CSV 文件 → 草案方案 + 逐行校验报告
+const importOpen = ref(false);
+const importName = ref("");
+const importBatch = ref<PlanBatch>("本科批");
+const importFileName = ref("");
+const importText = ref("");
+const importing = ref(false);
+const importReport = ref<PlanImportReport | null>(null);
+const importError = ref("");
+
+async function downloadTemplate() {
+  try {
+    const { data } = await api.planTemplate();
+    const url = URL.createObjectURL(data);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "sunpath-plan-template.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    ElMessage.error("模板下载失败，请稍后重试");
+  }
+}
+async function onImportFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (file.size > 200_000) {
+    ElMessage.warning("文件过大（上限 200KB），请精简后重试");
+    input.value = "";
+    return;
+  }
+  importFileName.value = file.name;
+  importText.value = await file.text();
+  importReport.value = null;
+  importError.value = "";
+}
+async function runImport() {
+  if (!importText.value.trim()) {
+    importError.value = "请先选择按模板填写的 CSV 文件";
+    return;
+  }
+  importing.value = true;
+  importError.value = "";
+  try {
+    const { data } = await api.importPlan(importText.value, {
+      name: importName.value.trim() || undefined,
+      batch: importBatch.value,
+    });
+    importReport.value = data.report;
+    ElMessage.success(
+      `已导入 ${data.report.imported} 条志愿${data.report.rejected ? `，${data.report.rejected} 条未通过校验` : ""}`,
+    );
+    await load();
+  } catch (error: unknown) {
+    const payload = (
+      error as { response?: { data?: { detail?: string; report?: PlanImportReport } } }
+    ).response?.data;
+    importReport.value = payload?.report ?? null;
+    importError.value = payload?.detail ?? "导入失败，请检查文件格式与表头";
+  } finally {
+    importing.value = false;
+  }
+}
 const planner = usePlanner();
 const router = useRouter();
 const compared = computed(() =>
@@ -132,7 +197,9 @@ onMounted(load);
       <p>查看历史方案，并排比较，在取舍中找到更清晰的方向。</p>
     </div>
     <div class="heading-actions">
-      <el-button :disabled="selected.length !== 2" @click="compareOpen = true"
+      <el-button @click="importOpen = true"
+        ><Upload :size="16" />导入志愿表</el-button
+      ><el-button :disabled="selected.length !== 2" @click="compareOpen = true"
         ><Columns2 :size="16" />对比方案（{{ selected.length }}/2）</el-button
       ><el-button type="primary" size="large" @click="router.push('/planner')"
         ><Plus :size="16" />前往规划中心</el-button
@@ -297,6 +364,58 @@ onMounted(load);
       </p></template
     ></el-dialog
   ><GroupDrawer v-model="drawer" :group="detail" />
+  <el-dialog v-model="importOpen" title="导入志愿表" width="min(780px, 94vw)">
+    <p class="muted">
+      按模板填写「序号 / 院校名称 / 专业组名称 / 梯度」，导入后生成草案方案；不合法的行会逐行给出原因，合法行仍会导入。
+    </p>
+    <div class="import-actions">
+      <el-button @click="downloadTemplate"
+        ><Download :size="14" />下载模板</el-button
+      ><label class="import-file">
+        <input type="file" accept=".csv,text/csv" @change="onImportFile" /><span
+          >{{
+            importFileName ? `已选择：${importFileName}` : "选择 CSV 文件"
+          }}</span
+        >
+      </label>
+    </div>
+    <el-form label-width="90px">
+      <el-form-item label="方案名称"
+        ><el-input
+          v-model="importName"
+          maxlength="80"
+          placeholder="留空则自动命名"
+      /></el-form-item>
+      <el-form-item label="填报批次"
+        ><el-select v-model="importBatch"
+          ><el-option label="本科批" value="本科批" /><el-option
+            label="专科批"
+            value="专科批" /></el-select
+      ></el-form-item>
+    </el-form>
+    <p v-if="importError" class="import-error">{{ importError }}</p>
+    <el-table
+      v-if="importReport?.errors.length"
+      :data="importReport.errors"
+      max-height="220"
+      class="import-report-table"
+    >
+      <el-table-column prop="line" label="行号" width="70" />
+      <el-table-column prop="school" label="院校" min-width="120" />
+      <el-table-column prop="group" label="专业组" min-width="120" />
+      <el-table-column prop="reason" label="未通过原因" min-width="200" />
+    </el-table>
+    <p v-if="importReport" class="muted">
+      共 {{ importReport.total }} 行 · 导入 {{ importReport.imported }} 行 · 未通过
+      {{ importReport.rejected }} 行
+    </p>
+    <template #footer
+      ><el-button @click="importOpen = false">关闭</el-button
+      ><el-button type="primary" :loading="importing" @click="runImport"
+        >开始导入</el-button
+      ></template
+    >
+  </el-dialog>
 </template>
 
 <style scoped>
@@ -319,5 +438,38 @@ onMounted(load);
 .saved-plan-actions > .icon-button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+.import-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0 16px;
+}
+.import-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px dashed #b9cade;
+  border-radius: 8px;
+  color: #4b78ab;
+  font-size: 12px;
+  cursor: pointer;
+  background: #f7fafd;
+}
+.import-file input {
+  display: none;
+}
+.import-file:hover {
+  border-color: #4b78ab;
+}
+.import-error {
+  color: #c45656;
+  font-size: 12px;
+  margin: 8px 0;
+}
+.import-report-table {
+  margin-top: 8px;
 }
 </style>

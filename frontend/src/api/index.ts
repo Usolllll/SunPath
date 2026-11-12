@@ -38,6 +38,12 @@ import type {
   MessageRefreshResult,
   MessageSubscription,
   MapConfig,
+  PlanImportResult,
+  ScoreSegment,
+  ScoreSegmentList,
+  OpsBehavior,
+  OpsTierDistribution,
+  OpsReport,
 } from "./types";
 export const api = {
   chatConfig: () =>
@@ -141,7 +147,27 @@ export const api = {
       plans: number;
       data_label: string;
     }>("/overview"),
+  /** 运营看板（仅管理员，M9-01/03/05） */
+  opsBehavior: (days = 30) =>
+    http.get<OpsBehavior>("/ops/behavior", { params: { days } }),
+  opsTierDistribution: () =>
+    http.get<OpsTierDistribution>("/ops/tier-distribution"),
+  opsReport: (days = 30) =>
+    http.get<OpsReport>("/ops/report", { params: { days } }),
+  opsReportExport: (days = 30) =>
+    http.get<Blob>("/ops/report/export", { params: { days }, responseType: "blob" }),
+  /** 一分一段（M4-02）：分数 → 位次参考；示例数据，不代表录取结果 */
+  scoreSegment: (province: string, year: number, score: number) =>
+    http.get<ScoreSegment>("/score-segment", { params: { province, year, score } }),
+  /** 一分一段分段列表（分数降序） */
+  scoreSegments: (province: string, year: number, limit = 60) =>
+    http.get<ScoreSegmentList>("/score-segment/segments", { params: { province, year, limit } }),
   plans: () => http.get<Plan[]>("/plans"),
+  /** 志愿表 CSV 导入：返回草案方案 + 逐行校验报告（可部分成功） */
+  importPlan: (content: string, options: { name?: string; batch?: PlanBatch } = {}) =>
+    http.post<PlanImportResult>("/plans/import", { content, ...options }),
+  planTemplate: () =>
+    http.get<Blob>("/plans/import/template", { responseType: "blob" }),
   /** 保存 / 更新方案；RTM 新增 batch（'本科批'|'专科批'），仅草稿可编辑 */
   savePlan: (
     name: string,
