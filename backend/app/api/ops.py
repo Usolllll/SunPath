@@ -6,16 +6,18 @@
 """
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import current_user
+from app.core.security import current_user, require_admin
 from app.models.entities import AuditLog, Favorite, University, User
+from app.services import audit
 from app.services import dictionary as dictionary_service
 from app.services import faq as faq_service
 from app.services import quality as quality_service
+from app.services import report as report_service
 
 router = APIRouter(prefix='/ops', tags=['运营与数据质量'])
 
@@ -126,3 +128,39 @@ def profile_completeness(user: User = Depends(current_user)):
         else:
             missing.append(field)
     return {'score': score, 'filled': filled, 'missing': missing}
+
+
+# ---------------------------------------------------------------- 管理员看板（M9）
+@router.get('/behavior')
+def behavior(days: int = Query(30, ge=7, le=90),
+             admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """行为看板（仅管理员）：注册/建方案/提交/投档结果查询/收藏，按天补零。"""
+    return report_service.behavior(db, days)
+
+
+@router.get('/tier-distribution')
+def tier_distribution(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """梯度分布（仅管理员）：遍历已保存方案的 risk 字段统计冲稳保。"""
+    return report_service.tier_distribution(db)
+
+
+@router.get('/report')
+def operations_report(days: int = Query(30, ge=7, le=90),
+                      admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """运营报表（仅管理员）：用户/方案/收藏/消息/梯度/行为/数据质量汇总。"""
+    return report_service.report(db, days)
+
+
+@router.get('/report/export')
+def report_export(request: Request, days: int = Query(30, ge=7, le=90),
+                  admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """导出运营报表 CSV（仅管理员；UTF-8 BOM + safe_cell 防公式注入，写审计）。"""
+    result = report_service.report(db, days)
+    audit.log_action(db, admin, 'report.export', target=f'report:{days}d',
+                     detail={'days': days, 'format': 'csv'}, request=request)
+    db.commit()
+    return Response(
+        content=report_service.report_csv(result).encode('utf-8'),
+        media_type='text/csv; charset=utf-8',
+        headers={'Content-Disposition': f'attachment; filename="{report_service.report_filename()}"'},
+    )

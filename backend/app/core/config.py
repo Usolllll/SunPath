@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     # 地图来源：auto=有天地图 Key 用天地图、否则用内置示意底图；schematic=强制内置底图（零账号）；
     # tianditu=强制天地图（未配 Key 时前端如实提示「服务待启用」）。
     map_provider: str = 'auto'
+    # 管理员邮箱白名单（运营看板/全站报表等聚合数据只对管理员开放；为空表示没有管理员）。
+    admin_emails: list[str] = []
 
     @field_validator('map_provider')
     @classmethod
@@ -64,6 +66,11 @@ class Settings(BaseSettings):
         if value.startswith('REPLACE_'):
             raise ValueError('请在 backend/.env 中设置随机 JWT_SECRET')
         return value
+
+    @field_validator('admin_emails')
+    @classmethod
+    def normalize_admin_emails(cls, value):
+        return [email.strip().lower() for email in value if email and email.strip()]
 
 @lru_cache
 def get_settings():

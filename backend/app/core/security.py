@@ -42,3 +42,10 @@ def current_user(credentials: HTTPAuthorizationCredentials | None = Depends(bear
         return user
     except (jwt.InvalidTokenError, ValueError, KeyError):
         raise error
+
+
+def require_admin(user: User = Depends(current_user)) -> User:
+    """运营看板/全站报表等聚合数据只对管理员开放（ADMIN_EMAILS 白名单）。"""
+    if (user.email or '').lower() not in set(get_settings().admin_emails):
+        raise HTTPException(status_code=403, detail='仅管理员可查看运营数据')
+    return user
