@@ -19,3 +19,4 @@ backend/reports/
 *.log
 .DS_Store
 
+backend/sunpath-import-test-*/
