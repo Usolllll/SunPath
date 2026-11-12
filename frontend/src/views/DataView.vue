@@ -13,7 +13,7 @@ import type { Group, CatalogUniversity } from "../api/types";
 import { api } from "../api";
 import { useAuth } from "../stores/auth";
 import GroupDrawer from "../components/GroupDrawer.vue";
-import UniversityMap from "../components/UniversityMap.vue";
+import DataMap from "../components/DataMap.vue";
 import RealDataPanel from "../components/RealDataPanel.vue";
 import { number } from "../utils/format";
 const auth = useAuth();
@@ -30,7 +30,7 @@ const universities = ref<CatalogUniversity[]>([]);
 const selectedId = ref<number | null>(null);
 const schoolPage = ref(1);
 const detailBusy = ref(false);
-const mapView = ref<InstanceType<typeof UniversityMap>>();
+const mapView = ref<InstanceType<typeof DataMap>>();
 const selectedSchool = computed(() =>
   universities.value.find((s) => s.id === selectedId.value),
 );
@@ -360,7 +360,7 @@ onMounted(() => {
         </div>
       </div>
       <div class="catalog-map-column">
-        <UniversityMap
+        <DataMap
           ref="mapView"
           :schools="universities"
           :selected-id="selectedId"
