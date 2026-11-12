@@ -23,6 +23,7 @@ export const MESSAGE_TYPE_OPTIONS: MessageTypeOption[] = [
   { value: "policy", label: "政策公告" },
   { value: "lecture", label: "院校宣讲" },
   { value: "quality", label: "数据质量" },
+  { value: "result", label: "结果推送" },
 ];
 
 const MESSAGE_TYPE_LABELS: Record<string, string> = {
@@ -31,6 +32,7 @@ const MESSAGE_TYPE_LABELS: Record<string, string> = {
   policy: "政策公告",
   lecture: "院校宣讲",
   quality: "数据质量",
+  result: "结果推送",
   // 兼容历史消息里出现过的旧取值
   notice: "政策公告",
   data_quality: "数据质量",

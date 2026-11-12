@@ -88,9 +88,11 @@ const provinceCards = computed<ProvinceCard[]>(() => {
       })),
     }));
 });
-const scopeText = computed(
-  () => `仅收录 ${REAL_DATA_PROVINCES.join(" / ")} 三省考试院公开发布的投档数据`,
-);
+const scopeText = computed(() => {
+  const names = (summary.value?.provinces ?? []).map((item) => item.province);
+  if (!names.length) return "尚未导入官方投档数据";
+  return `仅收录 ${names.join(" / ")} 考试院公开发布的投档数据`;
+});
 
 function sourceOf(url: string | null | undefined): string | null {
   return safeSourceUrl(url);

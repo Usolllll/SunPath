@@ -22,6 +22,7 @@ import type {
   OpsTierDistribution,
   PatrolItem,
   PopularityItem,
+  BatchConfig,
 } from "../api/types";
 import { date, downloadBlob, number } from "../utils/format";
 import { coverageText, safeSourceUrl, yearSpan } from "../utils/realdata";
@@ -91,6 +92,7 @@ function patrolHttpStatus(item: PatrolItem) {
 onMounted(() => {
   void load();
   void loadOps();
+  void loadBatches();
 });
 
 // M9 运营看板（仅管理员）：行为统计、梯度分布与运营报表导出
@@ -135,6 +137,42 @@ async function loadOps() {
     opsTiers.value = null;
   } finally {
     opsBusy.value = false;
+  }
+}
+
+// M10-01 批次与填报时间配置（管理员）
+const batchConfigs = ref<BatchConfig[]>([]);
+const batchesBusy = ref(false);
+const batchesSaved = ref(false);
+async function loadBatches() {
+  try {
+    const { data } = await api.batches();
+    batchConfigs.value = (data.items ?? []).map((item) => ({ ...item }));
+  } catch {
+    batchConfigs.value = [];
+  }
+}
+async function saveBatches() {
+  batchesBusy.value = true;
+  batchesSaved.value = false;
+  try {
+    const { data } = await api.saveBatches(
+      batchConfigs.value.map((item: BatchConfig) => ({
+        name: item.name,
+        active: item.active,
+        sort_order: item.sort_order,
+        fill_start: item.fill_start || null,
+        fill_end: item.fill_end || null,
+        note: item.note || null,
+      })),
+    );
+    batchConfigs.value = (data.items ?? []).map((item) => ({ ...item }));
+    batchesSaved.value = true;
+    ElMessage.success("批次配置已保存");
+  } catch {
+    ElMessage.error("批次配置保存失败，请检查日期格式");
+  } finally {
+    batchesBusy.value = false;
   }
 }
 
@@ -288,6 +326,52 @@ async function exportReport() {
               <el-option :value="30" label="近 30 天" />
               <el-option :value="90" label="近 90 天" />
             </el-select>
+          </div>
+          <div class="batches-editor">
+            <div class="quality-card-head">
+              <h4>批次与填报时间窗配置</h4>
+              <span class="muted">停用的批次不再出现在规划页下拉中</span>
+            </div>
+            <el-table :data="batchConfigs" size="small">
+              <el-table-column prop="name" label="批次" width="110" />
+              <el-table-column label="启用" width="80"
+                ><template #default="{ row }"
+                  ><el-switch v-model="row.active" /></template
+              ></el-table-column>
+              <el-table-column label="填报开始" width="160"
+                ><template #default="{ row }"
+                  ><el-date-picker
+                    v-model="row.fill_start"
+                    type="date"
+                    value-format="YYYY-MM-DD"
+                    placeholder="未配置"
+                    size="small"
+                    style="width: 140px" /></template
+              ></el-table-column>
+              <el-table-column label="填报结束" width="160"
+                ><template #default="{ row }"
+                  ><el-date-picker
+                    v-model="row.fill_end"
+                    type="date"
+                    value-format="YYYY-MM-DD"
+                    placeholder="未配置"
+                    size="small"
+                    style="width: 140px" /></template
+              ></el-table-column>
+              <el-table-column label="备注" min-width="160"
+                ><template #default="{ row }"
+                  ><el-input
+                    v-model="row.note"
+                    size="small"
+                    maxlength="200" /></template
+              ></el-table-column>
+            </el-table>
+            <div class="ops-actions">
+              <el-button :loading="batchesBusy" @click="saveBatches"
+                >保存批次配置</el-button
+              >
+              <span v-if="batchesSaved" class="muted">已保存</span>
+            </div>
           </div>
         </template>
         <p v-else-if="opsBusy" class="quality-note">正在加载运营数据…</p>
@@ -762,4 +846,15 @@ async function exportReport() {
   }
 }
 
+
+.batches-editor {
+  margin-top: 16px;
+  border-top: 1px dashed #dce7f2;
+  padding-top: 12px;
+}
+.batches-editor h4 {
+  font-size: 13px;
+  color: #2f4b68;
+  margin-bottom: 8px;
+}
 </style>

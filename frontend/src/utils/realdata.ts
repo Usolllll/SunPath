@@ -4,8 +4,16 @@
  * 真实数据的所有条目都来自省考试院公开文件，界面必须可追溯到来源并保留声明。
  */
 
-/** 后端 real-data 接口当前支持的生源省份（其他省份返回 422） */
-export const REAL_DATA_PROVINCES = ["辽宁", "贵州", "黑龙江"] as const;
+/** 已知官方数据省份的展示顺序（其余省份排在后面；实际覆盖以接口 summary 为准） */
+export const REAL_DATA_PROVINCES = [
+  "辽宁",
+  "贵州",
+  "黑龙江",
+  "浙江",
+  "河北",
+  "安徽",
+  "江苏",
+] as const;
 
 export interface ProvinceLike {
   province: string;

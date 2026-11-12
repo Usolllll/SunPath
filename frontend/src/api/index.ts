@@ -44,6 +44,8 @@ import type {
   OpsBehavior,
   OpsTierDistribution,
   OpsReport,
+  BatchConfig,
+  BatchConfigList,
 } from "./types";
 export const api = {
   chatConfig: () =>
@@ -147,6 +149,11 @@ export const api = {
       plans: number;
       data_label: string;
     }>("/overview"),
+  /** 批次与填报时间配置（M10-01）：所有登录用户可读 */
+  batches: () => http.get<BatchConfigList>("/batches"),
+  /** 管理员保存批次配置（M10-01） */
+  saveBatches: (batches: BatchConfig[]) =>
+    http.put<BatchConfigList>("/ops/batches", { batches }),
   /** 运营看板（仅管理员，M9-01/03/05） */
   opsBehavior: (days = 30) =>
     http.get<OpsBehavior>("/ops/behavior", { params: { days } }),

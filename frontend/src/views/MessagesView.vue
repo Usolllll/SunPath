@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import {
+  Activity,
   Bell,
   CalendarClock,
   CheckCheck,
@@ -71,6 +72,7 @@ const TYPE_ICONS: Record<string, typeof Bell> = {
   policy: Newspaper,
   lecture: Megaphone,
   quality: ShieldCheck,
+  result: Activity,
   // 兼容历史消息里出现过的旧取值
   notice: Newspaper,
   data_quality: ShieldCheck,

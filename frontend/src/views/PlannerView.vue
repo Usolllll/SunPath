@@ -37,7 +37,7 @@ import {
 } from "../utils/rtm";
 import RiskBadge from "../components/RiskBadge.vue";
 import GroupDrawer from "../components/GroupDrawer.vue";
-import type { Group } from "../api/types";
+import type { BatchConfig, Group, PlanBatch } from "../api/types";
 const planner = usePlanner();
 const auth = useAuth();
 const router = useRouter();
@@ -128,7 +128,31 @@ async function syncPlanState() {
 onMounted(() => {
   void ensureCosts();
   void syncPlanState();
+  void loadBatches();
 });
+
+// M10-01 批次与填报时间配置：批次下拉由后端配置驱动（停用的批次不展示）
+const batchConfigs = ref<BatchConfig[]>([]);
+const batchOptions = computed<PlanBatch[]>(() => {
+  const names = batchConfigs.value
+    .filter((b) => b.active)
+    .map((b) => b.name as PlanBatch);
+  return names.length ? names : [...PLAN_BATCHES];
+});
+const currentBatch = computed(() =>
+  batchConfigs.value.find((b) => b.name === planner.batch),
+);
+async function loadBatches() {
+  try {
+    const { data } = await api.batches();
+    batchConfigs.value = data.items ?? [];
+    if (batchOptions.value.length && !batchOptions.value.includes(planner.batch)) {
+      planner.batch = batchOptions.value[0];
+    }
+  } catch {
+    /* 配置读取失败时回退到内置批次列表 */
+  }
+}
 
 const stale = computed(
   () =>
@@ -300,12 +324,17 @@ async function download() {
         aria-label="方案批次"
       >
         <el-option
-          v-for="batch in PLAN_BATCHES"
+          v-for="batch in batchOptions"
           :key="batch"
           :value="batch"
           :label="batch"
         />
       </el-select>
+      <span
+        v-if="currentBatch?.fill_start && currentBatch?.fill_end"
+        class="batch-window"
+        >{{ currentBatch.fill_start }} ~ {{ currentBatch.fill_end }}</span
+      >
       <el-button :disabled="!editable" @click="clear"
         ><FilePlus2 :size="16" />新建方案</el-button
       ><el-button
@@ -618,5 +647,11 @@ async function download() {
   color: #9aa8ba;
   margin-top: -4px;
   line-height: 1.7;
+}
+
+.batch-window {
+  font-size: 11px;
+  color: #7b8ea5;
+  white-space: nowrap;
 }
 </style>

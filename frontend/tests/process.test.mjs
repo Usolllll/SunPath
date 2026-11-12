@@ -165,17 +165,18 @@ test("message refresh count tolerates different backend field names", () => {
 test("message and notice dictionaries match the product copy", () => {
   assert.deepEqual(
     MESSAGE_TYPE_OPTIONS.map((item) => item.label),
-    ["征集提醒", "方案提醒", "政策公告", "院校宣讲", "数据质量"],
+    ["征集提醒", "方案提醒", "政策公告", "院校宣讲", "数据质量", "结果推送"],
   );
   assert.deepEqual(
     MESSAGE_TYPE_OPTIONS.map((item) => item.value),
-    ["collection", "plan", "policy", "lecture", "quality"],
+    ["collection", "plan", "policy", "lecture", "quality", "result"],
   );
   assert.equal(messageTypeLabel("collection"), "征集提醒");
   assert.equal(messageTypeLabel("plan"), "方案提醒");
   assert.equal(messageTypeLabel("policy"), "政策公告");
   assert.equal(messageTypeLabel("lecture"), "院校宣讲");
   assert.equal(messageTypeLabel("quality"), "数据质量");
+  assert.equal(messageTypeLabel("result"), "结果推送");
   // 历史消息里的旧取值仍能正确展示
   assert.equal(messageTypeLabel("notice"), "政策公告");
   assert.equal(messageTypeLabel("data_quality"), "数据质量");

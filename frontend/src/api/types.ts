@@ -710,3 +710,19 @@ export interface OpsReport {
   quality: Record<string, unknown>;
   note: string;
 }
+
+
+/** 批次与填报时间配置（M10-01）：GET /batches 所有登录用户可读，PUT /ops/batches 仅管理员 */
+export interface BatchConfig {
+  name: string;
+  active: boolean;
+  sort_order: number;
+  fill_start: string | null;
+  fill_end: string | null;
+  note: string | null;
+  updated_at?: string | null;
+}
+export interface BatchConfigList {
+  items: BatchConfig[];
+  note: string;
+}
