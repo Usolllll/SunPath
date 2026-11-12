@@ -49,10 +49,10 @@ class ProfileIn(BaseModel):
     def valid_subscription(cls, v):
         if v is None:
             return None
-        allowed_types = {'collection', 'policy', 'lecture', 'quality', 'plan'}
+        allowed_types = {'collection', 'policy', 'lecture', 'quality', 'plan', 'result'}
         types = v.get('types') or []
         if [item for item in types if item not in allowed_types]:
-            raise ValueError('订阅类型只能是 collection/policy/lecture/quality/plan')
+            raise ValueError('订阅类型只能是 collection/policy/lecture/quality/plan/result')
         channel = v.get('channel', 'site')
         if channel not in {'site'}:
             raise ValueError('当前仅支持站内信渠道')

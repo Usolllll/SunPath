@@ -226,6 +226,25 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(rows[0].target, f'plan:{plan_id}')
         self.assertEqual(rows[0].user_id, self.user_id)
 
+    def test_result_query_pushes_message_once_and_audits(self):
+        self.save_profile()
+        plan_id = self.make_plan(['官方甲大学'])
+        self.add_official('官方甲大学', 22580)
+        for _ in range(2):
+            response = self.client.get(f'/api/process/results/{plan_id}', headers=self.headers)
+            self.assertEqual(response.status_code, 200, response.text)
+        messages = self.client.get('/api/messages', headers=self.headers)
+        self.assertEqual(messages.status_code, 200, messages.text)
+        pushed = [item for item in messages.json()['items'] if item['type'] == 'result']
+        self.assertEqual(len(pushed), 1)
+        self.assertIn('模拟投档结果', pushed[0]['title'])
+        self.assertIn('不代表录取结果', pushed[0]['body'])
+        self.assertEqual(pushed[0]['link'], '/process')
+        with SessionLocal() as db:
+            rows = db.scalars(select(AuditLog).where(AuditLog.action == 'result.push')).all()
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0].target, f'plan:{plan_id}')
+
     def test_results_owner_scoped_and_auth(self):
         plan_id = self.make_plan(['越权测试大学'])
         self.assertEqual(self.client.get(f'/api/process/results/{plan_id}').status_code, 401)

@@ -220,6 +220,10 @@ class NoticesTests(unittest.TestCase):
         me = self.client.get('/api/auth/me', headers=self.headers).json()
         self.assertEqual(me['profile']['subscription'], saved)
 
+        # M7-04：结果推送类型也可订阅
+        self.assertEqual(self.subscribe(['result'], lead_days=1),
+                         {'types': ['result'], 'channel': 'site', 'lead_days': 1})
+
         # 重复类型去重、缺省值补齐
         deduped = self.subscribe(['plan', 'plan', 'policy'], lead_days=0)
         self.assertEqual(deduped['types'], ['plan', 'policy'])

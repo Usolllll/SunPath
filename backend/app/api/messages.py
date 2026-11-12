@@ -18,7 +18,7 @@ router = APIRouter(prefix='/messages', tags=['消息中心'])
 
 class SubscriptionIn(BaseModel):
     """订阅偏好：类型子集 + 站内信渠道 + 提前提醒天数。"""
-    types: list[Literal['collection', 'policy', 'lecture', 'quality', 'plan']] = Field(default_factory=list,
+    types: list[Literal['collection', 'policy', 'lecture', 'quality', 'plan', 'result']] = Field(default_factory=list,
                                                                                         max_length=5)
     channel: Literal['site'] = 'site'
     lead_days: int = Field(default=3, ge=0, le=14)

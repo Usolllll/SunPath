@@ -1,8 +1,10 @@
-"""录取进程与结果查询（FR-M7-01 / M7-02 / M7-03 / M7-05）：批次时间轴、模拟投档结果、结果导出。
+"""录取进程与结果查询（FR-M7-01 / M7-02 / M7-03 / M7-04 / M7-05）：批次时间轴、模拟投档结果、结果推送留痕、结果导出。
 
 说明：无真实录取结果，模拟投档仅基于已收录的官方投档线做"是否达到最低位次"的演示判定，
 不代表录取概率或录取结果；所有接口均需登录，方案结果仅属主可见。
 """
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy import select
@@ -13,6 +15,7 @@ from app.core.security import current_user
 from app.models.entities import Plan, User
 from app.services import audit
 from app.services import process as process_service
+from app.services.notices import create_message
 
 router = APIRouter(prefix='/process', tags=['录取进程与结果'])
 
@@ -48,11 +51,24 @@ def collection(province: str = Query('', max_length=20), user: User = Depends(cu
 @router.get('/results/{plan_id}')
 def results(plan_id: int, request: Request,
             user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """模拟投档结果：仅属主可见；只做官方投档最低位次的达到/未达到判定。"""
+    """模拟投档结果：仅属主可见；只做官方投档最低位次的达到/未达到判定；查询即推送站内消息（按方案+日期去重）。"""
     plan = _owned_plan(db, user, plan_id)
     result = process_service.simulate(db, plan, getattr(user, 'profile', None))
+    summary = result['summary']
+    # M7-04 结果推送留痕：每个方案每天只推一次，dedupe_key 保证幂等；推送渠道为站内消息
+    pushed = create_message(
+        db, user, type='result', title='模拟投档结果已生成',
+        body=(f'方案「{plan.name}」共 {summary["total"]} 条志愿：达到 {summary["pass"]} 条、'
+              f'未达到 {summary["fail"]} 条、暂无官方投档数据 {summary["no_data"]} 条。'
+              f'仅按官方投档最低位次演示判定，不代表录取结果或概率。'),
+        link='/process',
+        dedupe_key=f'result:{plan.id}:{date.today().isoformat()}',
+    )
     audit.log_action(db, user, 'result.query', target=f'plan:{plan.id}',
-                     detail={'summary': result['summary']}, request=request)
+                     detail={'summary': summary, 'pushed': pushed}, request=request)
+    if pushed:
+        audit.log_action(db, user, 'result.push', target=f'plan:{plan.id}',
+                         detail={'summary': summary, 'channel': 'site'}, request=request)
     db.commit()
     return result
 

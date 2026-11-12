@@ -20,7 +20,7 @@ from app.services import quality
 
 DATA_DIR = Path(__file__).resolve().parents[1] / 'data'
 DEFAULT_SUBSCRIPTION = {'types': ['collection', 'plan'], 'channel': 'site', 'lead_days': 3}
-SUBSCRIPTION_TYPES = ('collection', 'policy', 'lecture', 'quality', 'plan')
+SUBSCRIPTION_TYPES = ('collection', 'policy', 'lecture', 'quality', 'plan', 'result')
 CHANNELS = ('site',)
 MESSAGE_LIMIT = 50
 MAX_TITLE = 120
