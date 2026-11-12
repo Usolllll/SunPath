@@ -42,6 +42,24 @@ class ProfileIn(BaseModel):
     budget_total: int | None = Field(default=None, ge=0, le=2_000_000)
     physical: dict[str, object] | None = None
     intent_types: list[str] | None = None
+    subscription: dict[str, object] | None = None
+
+    @field_validator('subscription')
+    @classmethod
+    def valid_subscription(cls, v):
+        if v is None:
+            return None
+        allowed_types = {'collection', 'policy', 'lecture', 'quality', 'plan'}
+        types = v.get('types') or []
+        if [item for item in types if item not in allowed_types]:
+            raise ValueError('订阅类型只能是 collection/policy/lecture/quality/plan')
+        channel = v.get('channel', 'site')
+        if channel not in {'site'}:
+            raise ValueError('当前仅支持站内信渠道')
+        lead_days = v.get('lead_days', 3)
+        if not isinstance(lead_days, int) or not 0 <= lead_days <= 14:
+            raise ValueError('提前提醒天数应为 0–14 的整数')
+        return {'types': list(dict.fromkeys(types)), 'channel': channel, 'lead_days': lead_days}
 
     @field_validator('priority_mode', mode='before')
     @classmethod

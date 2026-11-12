@@ -33,6 +33,7 @@ class Profile(Base):
     budget_total: Mapped[int | None] = mapped_column(Integer, default=None)                  # 四年总预算（元）
     physical: Mapped[dict | None] = mapped_column(JSON, default=None)                        # 体检项
     intent_types: Mapped[list | None] = mapped_column(JSON, default=None)                    # 强基/综评/专项...
+    subscription: Mapped[dict | None] = mapped_column(JSON, default=None)                     # 订阅偏好（征集提醒/政策/宣讲、渠道、提前天数）
     user: Mapped['User'] = relationship(back_populates='profile')
 
 class University(Base):
@@ -235,3 +236,17 @@ class EmploymentSummary(Base):
     metric_definition: Mapped[str | None] = mapped_column(String(200), default=None)        # 口径说明
     source_url: Mapped[str] = mapped_column(String(500))
     collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Message(Base):
+    """站内消息中心（FR-M8-03）：系统提醒与订阅推送，只存本人消息。"""
+    __tablename__ = 'messages'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    type: Mapped[str] = mapped_column(String(30), index=True)          # collection/plan/policy/quality/system
+    title: Mapped[str] = mapped_column(String(120))
+    body: Mapped[str] = mapped_column(String(500))
+    link: Mapped[str | None] = mapped_column(String(200), default=None)
+    dedupe_key: Mapped[str | None] = mapped_column(String(120), default=None, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
