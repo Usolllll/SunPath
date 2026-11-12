@@ -19,6 +19,7 @@ from app.models.entities import Plan, User
 from app.schemas.dto import PlanIn, ProfileIn
 from app.services.audit import log_action
 from app.services.catalog import require_profile
+from app.services.notices import create_message
 from app.services.recommender import recommend
 from app.utils.export import plan_csv
 
@@ -138,6 +139,13 @@ def submit(plan_id: int, request: Request,
         raise HTTPException(400, '方案中有专业组不符合当前画像、位次或招生要求，请重新匹配后调整')
     plan.status = SUBMITTED
     plan.submitted_at = datetime.now(timezone.utc)
+    # 提交成功的站内消息（M8）：dedupe_key 保证重复提交/撤回后再提交都不重复发送
+    create_message(
+        db, user, type='plan', title='志愿方案已提交',
+        body=(f'方案「{plan.name}」（{plan.batch or "本科批"}）已提交，提交后不可编辑；'
+              f'如需修改请先在「志愿规划」页撤回。'),
+        link='/planner', dedupe_key=f'plan:{plan.id}:submit',
+    )
     log_action(db, user, 'plan.submit', target=f'plan:{plan.id}',
                detail={'batch': plan.batch, 'item_count': len(plan.items or [])}, request=request)
     db.commit()
