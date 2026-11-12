@@ -20,6 +20,7 @@ export interface TMap {
   checkResize(): void;
   clearOverLays(): void;
   addControl(control: TControl): void;
+  enableScrollWheelZoom(): void;
   disableScrollWheelZoom(): void;
   closeInfoWindow(): void;
   remove?(): void;

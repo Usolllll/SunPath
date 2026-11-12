@@ -130,7 +130,12 @@ test("map adapter preserves WGS84 order, filters markers, selects schools, escap
     addControl(value) {
       this.controls.push(value);
     }
-    disableScrollWheelZoom() {}
+    disableScrollWheelZoom() {
+      this.wheelZoomEnabled = false;
+    }
+    enableScrollWheelZoom() {
+      this.wheelZoomEnabled = true;
+    }
     closeInfoWindow() {}
     checkResize() {
       this.resized = true;
@@ -213,6 +218,7 @@ test("map adapter preserves WGS84 order, filters markers, selects schools, escap
   assert.deepEqual(state.maps[0].points, [new Point(120, 30)]);
   assert.equal(state.maps[0].zoom, 12);
   assert.equal(state.maps[0].controls.length, 2);
+  assert.equal(state.maps[0].wheelZoomEnabled, true);
   assert.deepEqual(Object.keys(state.maps[0].options).sort(), [
     "maxZoom",
     "minZoom",

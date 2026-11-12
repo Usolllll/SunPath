@@ -16,12 +16,30 @@ export function createUniversityMap(
   container: string,
   onSelect: (id: number) => void,
 ) {
+  const MIN_ZOOM = 3;
+  const MAX_ZOOM = 18;
   // Default official basemap, labels and copyright controls are preserved.
-  const map: TMap = new T.Map(container, { minZoom: 3, maxZoom: 18 });
+  const map: TMap = new T.Map(container, {
+    minZoom: MIN_ZOOM,
+    maxZoom: MAX_ZOOM,
+  });
   map.centerAndZoom(new T.LngLat(105, 35), 4);
-  map.disableScrollWheelZoom();
+  // 鼠标移到地图范围内即可用滚轮缩放地图（官方 SDK 自带实现）。
+  map.enableScrollWheelZoom();
   map.addControl(new T.Control.Zoom());
   map.addControl(new T.Control.Scale());
+  // 地图范围内滚轮只缩放地图，避免页面跟着滚动；到达最小/最大级别后把滚动交还页面。
+  const host =
+    typeof document === "undefined" ||
+    typeof document.getElementById !== "function"
+      ? null
+      : document.getElementById(container);
+  const onWheel = (event: WheelEvent) => {
+    const zoom = map.getZoom();
+    const canZoom = event.deltaY < 0 ? zoom < MAX_ZOOM : zoom > MIN_ZOOM;
+    if (canZoom) event.preventDefault();
+  };
+  host?.addEventListener("wheel", onWheel, { passive: false });
   let schools: CatalogUniversity[] = [];
   const markers = new Map<number, TMarker>();
   const clusterSvg =
@@ -130,6 +148,7 @@ export function createUniversityMap(
       map.checkResize();
     },
     destroy() {
+      host?.removeEventListener("wheel", onWheel);
       clusters.clearMarkers();
       markers.clear();
       map.closeInfoWindow();
