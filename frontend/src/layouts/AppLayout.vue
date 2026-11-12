@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import {
   LayoutDashboard,
   ContactRound,
+  Globe2,
   School,
   Sparkles,
   MessageCircle,
@@ -41,6 +42,7 @@ const showHelp = ref(false);
 const nav = [
   { path: "/", label: "规划概览", icon: LayoutDashboard },
   { path: "/profile", label: "考生画像", icon: ContactRound },
+  { path: "/study-abroad", label: "留学规划", icon: Globe2 },
   { path: "/data", label: "招生数据中心", icon: School },
   { path: "/analysis", label: "智能院校匹配", icon: Sparkles },
   { path: "/ai-chat", label: "AI 问答", icon: MessageCircle },

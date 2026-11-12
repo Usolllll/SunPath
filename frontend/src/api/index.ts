@@ -46,6 +46,9 @@ import type {
   OpsReport,
   BatchConfig,
   BatchConfigList,
+  StudyAbroadOptions,
+  StudyAbroadState,
+  StudyAbroadTargetPayload,
 } from "./types";
 export const api = {
   chatConfig: () =>
@@ -247,4 +250,15 @@ export const api = {
     http.get<MessageSubscription>("/messages/subscription"),
   saveMessageSubscription: (data: MessageSubscription) =>
     http.put<MessageSubscription>("/messages/subscription", data),
+  // ---------------------------------------------------------------- M11：留学规划
+  /** 留学规划选项：考试类型、目标地区与院校索引（本模块只做官方入口索引，不代填申请表） */
+  studyAbroadOptions: () =>
+    http.get<StudyAbroadOptions>("/study-abroad/options"),
+  /** 当前留学目标：target 为已保存目标，plan 为语言要求对比 / 清单 / 时间线 */
+  studyAbroadTarget: () => http.get<StudyAbroadState>("/study-abroad/target"),
+  /** 保存留学目标（按用户 upsert，返回最新 target/plan） */
+  saveStudyAbroadTarget: (payload: StudyAbroadTargetPayload) =>
+    http.put<StudyAbroadState>("/study-abroad/target", payload),
+  /** 清除留学目标（204） */
+  clearStudyAbroadTarget: () => http.delete("/study-abroad/target"),
 };

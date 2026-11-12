@@ -726,3 +726,164 @@ export interface BatchConfigList {
   items: BatchConfig[];
   note: string;
 }
+
+// ---------------------------------------------------------------- M11：留学规划（官方入口索引）
+export type StudyAbroadLanguageStatus = "reached" | "below" | "unknown";
+/** 学校语言参考要求（雅思 / 托福，可能缺项） */
+export interface StudyAbroadLanguage {
+  ielts?: number | null;
+  toefl?: number | null;
+}
+/** 留学升学路径：gaokao / post_gaokao / international（由后端 options.meta.pathways 提供） */
+export interface StudyAbroadPathway {
+  code: string;
+  label: string;
+  summary: string;
+  note: string;
+}
+/** 某地区在某条升学路径下的申请说明 */
+export interface StudyAbroadPathwayPlan extends StudyAbroadPathway {
+  region_note: string;
+}
+/** 高考成绩是否被接受：true 接受 / false 通常不接受 / null 未标注（仅参考，以官网为准） */
+export interface StudyAbroadGaokaoCheck {
+  accepted: boolean | null;
+  label: string;
+  note: string;
+}
+export interface StudyAbroadRegionGaokao {
+  accepted: boolean;
+  note: string;
+}
+export interface StudyAbroadTest {
+  code: string;
+  label: string;
+  scale: string;
+  official_url: string;
+  registration_url: string;
+  note: string;
+}
+export interface StudyAbroadSchool {
+  id: string;
+  name: string;
+  name_zh: string;
+  official_url: string;
+  language: StudyAbroadLanguage;
+  majors: string[];
+  intakes: string[];
+  note: string;
+  /** 该校是否接受高考成绩（仅参考）；旧数据可能缺省 */
+  gaokao?: StudyAbroadGaokaoCheck;
+  /** 常见申请资格 / 课程体系（A-Level、IB、SAT/AP 等） */
+  qualifications?: string[];
+}
+export interface StudyAbroadRegion {
+  code: string;
+  label: string;
+  application_portal: string;
+  portal_url: string;
+  note: string;
+  schools: StudyAbroadSchool[];
+  /** 该地区在各升学路径下的申请说明，key 为 pathway code */
+  pathways?: Record<string, string>;
+  gaokao?: StudyAbroadRegionGaokao;
+}
+export interface StudyAbroadMeta {
+  purpose?: string;
+  updated_at?: string;
+  data_mode?: string;
+  note?: string;
+  language_hint?: string;
+  /** 升学路径定义（表单下拉与结果卡使用） */
+  pathways?: StudyAbroadPathway[];
+  [key: string]: unknown;
+}
+/** GET /study-abroad/options：考试、地区与院校索引（只做官方入口索引） */
+export interface StudyAbroadOptions {
+  meta: StudyAbroadMeta;
+  tests: StudyAbroadTest[];
+  regions: StudyAbroadRegion[];
+  disclaimer: string;
+}
+export interface StudyAbroadTarget {
+  region: string;
+  region_label: string;
+  school_id: string;
+  school_name: string;
+  school_name_zh: string;
+  test_type: string;
+  test_label: string;
+  test_score: number;
+  target_major: string | null;
+  /** 升学路径 code：gaokao / post_gaokao / international */
+  path: string;
+  path_label: string;
+  /** 高考成绩（仅 gaokao 路径填写，用于结果提示） */
+  gaokao_score: number | null;
+  saved_at: string;
+}
+export interface StudyAbroadTargetPayload {
+  region: string;
+  school_id: string;
+  test_type: string;
+  test_score: number;
+  target_major?: string | null;
+  /** 升学路径（必传，默认 gaokao） */
+  path: string;
+  gaokao_score?: number | null;
+}
+export interface StudyAbroadPlanSchool {
+  id: string;
+  name: string;
+  name_zh: string;
+  official_url: string;
+  language?: StudyAbroadLanguage;
+  majors?: string[];
+  intakes?: string[];
+  note?: string;
+  gaokao?: StudyAbroadGaokaoCheck;
+  qualifications?: string[];
+}
+/** 语言要求三态对比：达到 / 低于 / 暂无参考（不是录取概率） */
+export interface StudyAbroadLanguageCheck {
+  test_type: string;
+  test_label: string;
+  scale: string;
+  user_score: number;
+  required: number | null;
+  status: StudyAbroadLanguageStatus;
+  label: string;
+}
+export interface StudyAbroadLink {
+  label: string;
+  url: string;
+}
+export interface StudyAbroadChecklistItem {
+  key: string;
+  label: string;
+  detail: string;
+}
+export interface StudyAbroadTimelineItem {
+  stage: string;
+  when: string;
+  detail: string;
+}
+export interface StudyAbroadPlan {
+  school: StudyAbroadPlanSchool;
+  language: StudyAbroadLanguageCheck;
+  /** 当前升学路径的说明与该地区申请建议 */
+  pathway: StudyAbroadPathwayPlan;
+  /** 高考成绩认可参考（仅 gaokao 路径重点展示） */
+  gaokao: StudyAbroadGaokaoCheck;
+  /** 路径相关提醒（如需要预科 / 材料差异），非空时醒目展示 */
+  path_warning?: string | null;
+  links: StudyAbroadLink[];
+  checklist: StudyAbroadChecklistItem[];
+  timeline: StudyAbroadTimelineItem[];
+}
+/** GET /study-abroad/target：当前留学目标与结果（未保存时 target/plan 为 null） */
+export interface StudyAbroadState {
+  target: StudyAbroadTarget | null;
+  plan: StudyAbroadPlan | null;
+  disclaimer: string;
+}

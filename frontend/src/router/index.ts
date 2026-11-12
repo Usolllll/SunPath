@@ -24,6 +24,11 @@ const router = createRouter({
           meta: { title: "考生画像", subtitle: "MY PROFILE" },
         },
         {
+          path: "study-abroad",
+          component: () => import("../views/StudyAbroadView.vue"),
+          meta: { title: "留学规划", subtitle: "STUDY ABROAD" },
+        },
+        {
           path: "data",
           component: () => import("../views/DataView.vue"),
           meta: { title: "招生数据中心", subtitle: "EXPLORER" },
