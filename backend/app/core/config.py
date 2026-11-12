@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     # 天地图「浏览器端」Key：本身就是公开的浏览器端凭据，由部署方在自己的账号下申请。
     # 放在后端 .env 里便于独立部署时替换 Key，无需重新构建前端。
     tianditu_web_key: str = ''
+    # 地图来源：auto=有天地图 Key 用天地图、否则用内置示意底图；schematic=强制内置底图（零账号）；
+    # tianditu=强制天地图（未配 Key 时前端如实提示「服务待启用」）。
+    map_provider: str = 'auto'
+
+    @field_validator('map_provider')
+    @classmethod
+    def validate_map_provider(cls, value):
+        provider = (value or 'auto').strip().lower()
+        if provider not in {'auto', 'schematic', 'tianditu'}:
+            raise ValueError('MAP_PROVIDER 只能是 auto / schematic / tianditu')
+        return provider
 
     @field_validator('tianditu_web_key')
     @classmethod
