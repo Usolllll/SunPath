@@ -250,3 +250,16 @@ class Message(Base):
     dedupe_key: Mapped[str | None] = mapped_column(String(120), default=None, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+
+class BatchConfig(Base):
+    """批次与填报时间配置（FR-M10-01）：管理员可配、前端只读；日期为 YYYY-MM-DD 字符串。"""
+    __tablename__ = 'batch_configs'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(20), unique=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    fill_start: Mapped[str | None] = mapped_column(String(10), default=None)
+    fill_end: Mapped[str | None] = mapped_column(String(10), default=None)
+    note: Mapped[str | None] = mapped_column(String(200), default=None)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
