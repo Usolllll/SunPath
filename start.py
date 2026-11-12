@@ -98,10 +98,39 @@ def check_port(port):
             raise RuntimeError(f'Port {port} is already in use. Stop the existing service and try again.')
 
 
+PROBE = 'import sys, uvicorn, fastapi, sqlalchemy, pydantic; assert sys.version_info >= (3, 11), sys.version'
+
+
+def usable_python(path):
+    """True when ``path`` runs the backend: Python 3.11+ with the runtime dependencies."""
+    try:
+        result = subprocess.run([str(path), '-c', PROBE], capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+def find_python():
+    """Locate a suitable interpreter: explicit override, project venv, then a portable copy beside the repo."""
+    candidates = []
+    override = os.environ.get('SUNPATH_PYTHON', '').strip()
+    if override:
+        candidates.append(Path(override))
+    candidates.append(ROOT / 'backend' / '.venv' / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python'))
+    candidates.append(ROOT.parent / 'Python311' / ('python.exe' if os.name == 'nt' else 'bin/python3'))
+    for candidate in candidates:
+        if candidate.is_file() and usable_python(candidate):
+            return candidate
+    checked = ', '.join(str(item.relative_to(ROOT)) if ROOT in item.parents else str(item) for item in candidates)
+    raise RuntimeError(f'No usable Python 3.11+ interpreter with backend dependencies found (checked: {checked}). '
+                       'Complete first-time setup in README.md (backend/.venv) or set SUNPATH_PYTHON to a Python 3.11+ executable with requirements installed; '
+                       'this launcher does not install or initialize anything.')
+
+
 def check_files():
-    python = ROOT / 'backend' / '.venv' / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+    python = find_python()
     vite = ROOT / 'frontend' / 'node_modules' / 'vite' / 'bin' / 'vite.js'
-    for path in (python, vite, ROOT / 'backend' / '.env'):
+    for path in (vite, ROOT / 'backend' / '.env'):
         if not path.is_file():
             raise RuntimeError(f'Missing {path.relative_to(ROOT)}. Complete first-time setup in README.md; this launcher does not install or initialize anything.')
     node = shutil.which('node')
