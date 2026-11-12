@@ -28,6 +28,15 @@ import type {
   DataQuality,
   PopularityResult,
   ProfileCompleteness,
+  ProcessSchedule,
+  ProcessResults,
+  ProcessCollection,
+  NoticeItem,
+  NoticeResult,
+  MessagesResult,
+  MessageUnread,
+  MessageRefreshResult,
+  MessageSubscription,
 } from "./types";
 export const api = {
   chatConfig: () =>
@@ -169,4 +178,37 @@ export const api = {
     http.get<PopularityResult>("/ops/popularity", { params: { limit } }),
   profileCompleteness: () =>
     http.get<ProfileCompleteness>("/ops/profile-completeness"),
+  // ---------------------------------------------------------------- M7：录取进程 / 模拟投档 / 征集
+  /** 分批次录取进程时间轴（done/active/upcoming） */
+  processSchedule: (province: string) =>
+    http.get<ProcessSchedule>("/process/schedule", { params: { province } }),
+  /** 按方案逐条比对官方投档最低位次，生成模拟投档判定（不代表录取结果） */
+  processResults: (planId: number) =>
+    http.get<ProcessResults>(`/process/results/${planId}`),
+  processResultsExport: (planId: number) =>
+    http.get<Blob>(`/process/results/${planId}/export`, {
+      responseType: "blob",
+    }),
+  /** 征集志愿时间窗口与剩余天数 */
+  processCollection: (province: string) =>
+    http.get<ProcessCollection>("/process/collection", {
+      params: { province },
+    }),
+  // ---------------------------------------------------------------- M8：政策资讯 / 消息 / 订阅
+  notices: (params: { category?: string; q?: string; limit?: number } = {}) =>
+    http.get<NoticeResult>("/notices", { params }),
+  notice: (id: number | string) => http.get<NoticeItem>(`/notices/${id}`),
+  messages: (onlyUnread = false) =>
+    http.get<MessagesResult>("/messages", {
+      params: { only_unread: onlyUnread },
+    }),
+  unreadCount: () => http.get<MessageUnread>("/messages/unread-count"),
+  readMessage: (id: number) => http.post(`/messages/${id}/read`),
+  readAllMessages: () => http.post("/messages/read-all"),
+  /** 触发后端重新检查并生成提醒；返回新增条数等字段 */
+  refreshMessages: () => http.post<MessageRefreshResult>("/messages/refresh"),
+  messageSubscription: () =>
+    http.get<MessageSubscription>("/messages/subscription"),
+  saveMessageSubscription: (data: MessageSubscription) =>
+    http.put<MessageSubscription>("/messages/subscription", data),
 };

@@ -499,3 +499,112 @@ export interface ProfileCompleteness {
   filled: string[];
   missing: string[];
 }
+
+// ---------------------------------------------------------------- M7：录取进程 / 模拟投档结果 / 征集志愿
+export type ProcessState = "done" | "active" | "upcoming";
+export interface ProcessEvent {
+  stage: string;
+  start: string | null;
+  end: string | null;
+  status: string | null;
+  state: ProcessState;
+}
+export interface ProcessBatch {
+  batch: string;
+  events: ProcessEvent[];
+  current_stage: string | null;
+  next_window: string | null;
+}
+/** GET /process/schedule：分批次录取进程时间轴 */
+export interface ProcessSchedule {
+  province: string;
+  batches: ProcessBatch[];
+  note: string;
+  updated_at: string;
+}
+export type AdmissionVerdict = "pass" | "fail" | "no_data";
+export interface ProcessOfficial {
+  exam_year: number;
+  min_rank: number | null;
+  min_score?: number | null;
+  subject_type?: string | null;
+  source_url?: string | null;
+}
+export interface ProcessResultItem {
+  position: number;
+  university: string;
+  group_name: string;
+  risk?: Risk | null;
+  user_rank: number | null;
+  official: ProcessOfficial | null;
+  verdict: AdmissionVerdict;
+  label: string;
+}
+/** GET /process/results/{plan_id}：按官方投档最低位次做的模拟投档判定（不代表录取结果） */
+export interface ProcessResults {
+  plan_id: number;
+  plan_name: string;
+  province: string;
+  profile_rank: number | null;
+  summary: { total: number; pass: number; fail: number; no_data: number };
+  items: ProcessResultItem[];
+  disclaimer: string;
+}
+export interface ProcessCollection {
+  batch: string;
+  start: string | null;
+  end: string | null;
+  days_left: number | null;
+  status: string | null;
+  note: string;
+}
+
+// ---------------------------------------------------------------- M8：政策资讯 / 消息中心 / 订阅
+export interface NoticeItem {
+  id: number | string;
+  category: string;
+  title: string;
+  publish_date: string;
+  source: string | null;
+  source_url: string | null;
+  summary: string;
+  tags: string[];
+}
+/** GET /notices：政策资讯列表（分类 + 关键词筛选） */
+export interface NoticeResult {
+  total: number;
+  categories: string[];
+  items: NoticeItem[];
+}
+export interface MessageItem {
+  id: number;
+  type: string;
+  title: string;
+  body: string;
+  link: string | null;
+  created_at: string;
+  read_at: string | null;
+}
+/** GET /messages：消息中心（unread 为当前未读数） */
+export interface MessagesResult {
+  unread: number;
+  items: MessageItem[];
+}
+export interface MessageUnread {
+  unread: number;
+}
+/** POST /messages/refresh：后端可能返回 created/added/new 等字段，前端兼容读取 */
+export interface MessageRefreshResult {
+  created?: number | null;
+  added?: number | null;
+  new?: number | null;
+  new_count?: number | null;
+  unread?: number | null;
+  [key: string]: unknown;
+}
+/** GET/PUT /messages/subscription：提醒订阅设置 */
+export interface MessageSubscription {
+  types: string[];
+  channel: string;
+  lead_days: number;
+}

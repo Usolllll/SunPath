@@ -19,22 +19,25 @@ import {
   LogOut,
   CircleHelp,
   Bell,
-  CheckCheck,
+  CalendarClock,
+  Newspaper,
+  Mail,
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus/es/components/message-box/index";
 import BrandLogo from "../components/BrandLogo.vue";
 import { useAuth } from "../stores/auth";
 import { usePlanner } from "../stores/planner";
 import { useFavorites } from "../stores/favorites";
+import { useMessages } from "../stores/messages";
 import { api } from "../api";
 const auth = useAuth();
 const planner = usePlanner();
 const favorites = useFavorites();
+const messages = useMessages();
 const route = useRoute();
 const router = useRouter();
 const mobileOpen = ref(false);
 const showHelp = ref(false);
-const notifications = ref(false);
 const nav = [
   { path: "/", label: "规划概览", icon: LayoutDashboard },
   { path: "/profile", label: "考生画像", icon: ContactRound },
@@ -43,12 +46,21 @@ const nav = [
   { path: "/ai-chat", label: "AI 问答", icon: MessageCircle },
   { path: "/planner", label: "志愿规划中心", icon: Route },
   { path: "/plans", label: "我的志愿方案", icon: FolderHeart },
+  { path: "/process", label: "录取进程", icon: CalendarClock },
+  { path: "/notices", label: "政策资讯", icon: Newspaper },
+  { path: "/messages", label: "消息中心", icon: Mail },
   { path: "/favorites", label: "我的收藏", icon: Heart },
   { path: "/quality", label: "数据质量", icon: ShieldCheck },
   { path: "/faq", label: "常见问题", icon: CircleHelp },
 ];
 const profile = computed(() => auth.user?.profile);
-onMounted(() => void favorites.load());
+onMounted(() => {
+  void favorites.load();
+  void messages.load();
+});
+function openMessages() {
+  void router.push("/messages");
+}
 async function logout() {
   try {
     await ElMessageBox.confirm(
@@ -109,6 +121,10 @@ function command(value: string) {
             v-if="item.path === '/favorites' && favorites.ids.length"
             class="nav-count"
             >{{ favorites.ids.length }}</span
+          ><span
+            v-if="item.path === '/messages' && messages.unread"
+            class="nav-count"
+            >{{ messages.unread > 99 ? "99+" : messages.unread }}</span
           ></RouterLink
         >
       </nav>
@@ -146,25 +162,25 @@ function command(value: string) {
         <div class="topbar-right">
           <span class="data-status"
             ><span class="status-dot"></span>模拟数据环境</span
-          ><el-popover
-            v-model:visible="notifications"
-            placement="bottom-end"
-            :width="310"
-            trigger="click"
-            ><template #reference
-              ><button
-                class="icon-button notification-button"
-                aria-label="查看通知"
-              >
-                <Bell :size="19" /><i></i></button
-            ></template>
-            <div class="notification">
-              <CheckCheck :size="23" />
-              <div>
-                <strong>你的规划工作台已就绪</strong>
-                <p>2026 模拟招生样本已加载。完善画像后，即可开始智能匹配。</p>
-              </div>
-            </div></el-popover
+          ><button
+            class="icon-button notification-button"
+            :aria-label="
+              messages.unread
+                ? `消息中心，${messages.unread} 条未读`
+                : '消息中心，无未读消息'
+            "
+            :title="
+              messages.unread
+                ? `消息中心（${messages.unread} 条未读）`
+                : '消息中心'
+            "
+            @click="openMessages"
+          >
+            <Bell :size="19" /><span
+              v-if="messages.unread"
+              class="notification-badge"
+              >{{ messages.unread > 99 ? "99+" : messages.unread }}</span
+            ></button
           ><span class="topbar-divider"></span
           ><el-dropdown @command="command"
             ><button class="user-menu">
@@ -230,3 +246,22 @@ function command(value: string) {
     >
   </div>
 </template>
+
+<style scoped>
+.notification-badge {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #d97b6c;
+  color: #fff;
+  font-size: 8px;
+  line-height: 15px;
+  text-align: center;
+  font-weight: 500;
+  box-shadow: 0 0 0 1.5px #fff;
+}
+</style>

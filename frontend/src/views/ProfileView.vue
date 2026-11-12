@@ -12,6 +12,7 @@ import {
   Stethoscope,
   Info,
   Gauge,
+  Bell,
 } from "lucide-vue-next";
 import { ElMessage } from "element-plus/es/components/message/index";
 import { api } from "../api";
@@ -370,6 +371,14 @@ async function save() {
         /></RouterLink>
       </div>
       <CoverageCard :profile-key="coverageKey" />
+      <RouterLink to="/messages#subscription" class="panel subscription-entry">
+        <Bell :size="17" />
+        <div>
+          <strong>提醒订阅</strong>
+          <p>征集志愿、方案提交、政策公告与数据质量提醒</p>
+        </div>
+        <span class="text-button">去设置</span>
+      </RouterLink>
       <div v-if="completeness" class="panel completeness-card">
         <div class="completeness-head">
           <h3><Gauge :size="16" />画像完整度</h3>
@@ -466,5 +475,34 @@ async function save() {
   color: #8c9db4;
   line-height: 1.7;
   margin-top: 5px;
+}
+.subscription-entry {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 16px;
+  padding: 14px 17px;
+  color: #46618a;
+}
+.subscription-entry > svg {
+  color: #c79a5f;
+  flex-shrink: 0;
+}
+.subscription-entry > div {
+  flex: 1;
+  min-width: 0;
+}
+.subscription-entry strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.subscription-entry p {
+  font-size: 9px;
+  color: #9aa8ba;
+  margin-top: 3px;
+}
+.subscription-entry .text-button {
+  font-size: 10px;
+  flex-shrink: 0;
 }
 </style>

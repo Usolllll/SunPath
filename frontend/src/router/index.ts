@@ -49,6 +49,21 @@ const router = createRouter({
           meta: { title: "我的志愿方案", subtitle: "SAVED PLANS" },
         },
         {
+          path: "process",
+          component: () => import("../views/ProcessView.vue"),
+          meta: { title: "录取进程", subtitle: "ADMISSION PROCESS" },
+        },
+        {
+          path: "notices",
+          component: () => import("../views/NoticesView.vue"),
+          meta: { title: "政策资讯", subtitle: "NOTICES" },
+        },
+        {
+          path: "messages",
+          component: () => import("../views/MessagesView.vue"),
+          meta: { title: "消息中心", subtitle: "MESSAGES" },
+        },
+        {
           path: "favorites",
           component: () => import("../views/FavoritesView.vue"),
           meta: { title: "我的收藏", subtitle: "FAVORITES" },
