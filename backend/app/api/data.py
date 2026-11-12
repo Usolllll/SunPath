@@ -204,3 +204,33 @@ def real_data_school(name: str = Query(..., min_length=1, max_length=80), provin
     rows = real_data.list_rows(db, province, official['exam_year'], name, 1, 20)
     return {'school_name': name, 'official': official, 'recent_rows': rows['items'],
             'disclaimer': '真实投档线仅作核对参考，不等于录取线，也不代表今年录取结果。'}
+
+
+# ---------------------------------------------------------------- 一分一段（位次参考，示例数据）
+from app.services import score_segment as score_segment_service  # noqa: E402  （追加在文件末尾，避免改动已有导入）
+
+
+@router.get('/score-segment')
+def score_segment_lookup(province: str = Query(..., min_length=2, max_length=20),
+                         year: int = Query(..., ge=2020, le=2030),
+                         score: int = Query(..., ge=0, le=750)):
+    """按省份/年份/分数查一分一段的累计人数与位次参考；示例数据，不预测录取结果。"""
+    data = score_segment_service.query(province, year, score)
+    if data is None:
+        if score_segment_service.dataset(province, year) is None:
+            raise HTTPException(404, '该省未收录一分一段数据')
+        raise HTTPException(404, '该分数段未收录')
+    data['disclaimer'] = '一分一段数据用于位次参考，不代表录取结果。'
+    return data
+
+
+@router.get('/score-segment/segments')
+def score_segment_segments(province: str = Query(..., min_length=2, max_length=20),
+                           year: int = Query(..., ge=2020, le=2030),
+                           limit: int = Query(60, ge=1, le=200)):
+    """返回该省该年一分一段分段列表（分数降序，最多 limit 条）+ 数据来源与示例标识。"""
+    data = score_segment_service.segments(province, year, limit)
+    if data is None:
+        raise HTTPException(404, '该省未收录一分一段数据')
+    data['disclaimer'] = '一分一段数据用于位次参考，不代表录取结果。'
+    return data
