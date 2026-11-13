@@ -7,7 +7,6 @@ import {
   nextTick,
   watch,
 } from "vue";
-import axios from "axios";
 import MarkdownContent from "../components/MarkdownContent.vue";
 import {
   Sparkles,
@@ -24,7 +23,7 @@ import {
   Square,
 } from "lucide-vue-next";
 import { useAuth } from "../stores/auth";
-import { api } from "../api";
+import { api, chatStream } from "../api";
 import type {
   ChatMessage,
   ChatAvailableContext,
@@ -107,6 +106,8 @@ async function send() {
     { role: "user", content: text },
   ];
   messages.value.push({ role: "user", content: text });
+  messages.value.push({ role: "assistant", content: "" });
+  const assistant = messages.value[messages.value.length - 1];
   question.value = "";
   error.value = "";
   truncated.value = false;
@@ -114,7 +115,7 @@ async function send() {
   controller = new AbortController();
   await scrollToEnd();
   try {
-    const { data } = await api.chat(
+    const result = await chatStream(
       context,
       {
         use_profile: useProfile.value,
@@ -124,21 +125,32 @@ async function send() {
           : null,
       },
       controller.signal,
+      (delta) => {
+        assistant.content += delta;
+        void scrollToEnd();
+      },
+      (meta) => {
+        contextUsed.value = meta.context || null;
+        if (meta.model_label) modelLabel.value = meta.model_label;
+      },
     );
-    messages.value.push({ role: "assistant", content: data.content });
-    modelLabel.value = data.model_label;
-    contextUsed.value = data.context || null;
-    truncated.value = data.finish_reason === "length";
+    modelLabel.value = result.model_label || modelLabel.value;
+    contextUsed.value = result.context || contextUsed.value;
+    truncated.value = result.finish_reason === "length";
   } catch (failure) {
-    messages.value.pop();
-    question.value = text;
-    if (!axios.isCancel(failure)) {
-      const detail = axios.isAxiosError(failure)
-        ? failure.response?.data?.detail
-        : undefined;
+    if (!assistant.content) {
+      // 首字未到：撤掉占位回答与本次提问，允许重试
+      messages.value.pop();
+      messages.value.pop();
+      question.value = text;
+    }
+    const aborted =
+      controller?.signal.aborted ||
+      (failure as DOMException)?.name === "AbortError";
+    if (!aborted) {
       error.value =
-        typeof detail === "string"
-          ? detail
+        failure instanceof Error && failure.message
+          ? failure.message
           : "发送失败，问题已保留，可以重试。";
     }
   } finally {
@@ -244,23 +256,24 @@ onBeforeUnmount(() => controller?.abort());
         aria-live="polite"
         :aria-busy="busy"
       >
-        <article
-          v-for="(message, index) in messages"
-          :key="index"
-          :class="['ai-chat-message', message.role]"
-        >
-          <span class="ai-message-author">{{
-            message.role === "user" ? "我" : "SunPath 升学助手"
-          }}</span>
-          <MarkdownContent
-            v-if="message.role === 'assistant'"
-            class="ai-message-body"
-            :content="message.content"
-          />
-          <p v-else>{{ message.content }}</p>
-        </article>
+        <template v-for="(message, index) in messages" :key="index">
+          <article
+            v-if="message.role !== 'assistant' || message.content"
+            :class="['ai-chat-message', message.role]"
+          >
+            <span class="ai-message-author">{{
+              message.role === "user" ? "我" : "SunPath 升学助手"
+            }}</span>
+            <MarkdownContent
+              v-if="message.role === 'assistant'"
+              class="ai-message-body"
+              :content="message.content"
+            />
+            <p v-else>{{ message.content }}</p>
+          </article>
+        </template>
         <div v-if="busy" class="ai-waiting">
-          <Sparkles :size="15" />正在整理回答，请稍候…
+          <Sparkles :size="15" />正在生成回答（流式输出，首字到达即显示）…
         </div>
       </div>
 

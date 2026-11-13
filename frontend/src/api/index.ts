@@ -17,6 +17,7 @@ import type {
   ChatMessage,
   ChatReply,
   ChatAvailableContext,
+  ChatContextSummary,
   RealDataSummary,
   RealDataRows,
   RealDataSchool,
@@ -280,3 +281,110 @@ export const api = {
   /** 清除留学目标（204） */
   clearStudyAbroadTarget: () => http.delete("/study-abroad/target"),
 };
+
+// ---------------------------------------------------------------- AI 问答流式（SSE）
+export interface ChatStreamMeta {
+  context: ChatContextSummary;
+  model_label: string;
+}
+export interface ChatStreamResult {
+  content: string;
+  model: string;
+  model_label: string;
+  finish_reason: string;
+  context: ChatContextSummary | null;
+}
+
+function parseSseBlock(block: string): { event: string; data: unknown } | null {
+  let event = "message";
+  let data = "";
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) data += line.slice(5).trim();
+  }
+  if (!data) return null;
+  try {
+    return { event, data: JSON.parse(data) };
+  } catch {
+    return null;
+  }
+}
+
+/** 流式问答：逐段回调，返回与 /chat 相同语义的结果；首字到达即可渲染，降低等待感。 */
+export async function chatStream(
+  messages: ChatMessage[],
+  options: { use_profile: boolean; use_saved_plans: boolean; plan_ids: number[] | null },
+  signal: AbortSignal,
+  onDelta: (delta: string) => void,
+  onMeta?: (meta: ChatStreamMeta) => void,
+): Promise<ChatStreamResult> {
+  const token = localStorage.getItem("sunpath.token");
+  const base = import.meta.env.VITE_API_BASE_URL || "/api";
+  const response = await fetch(`${base}/chat/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ messages, ...options }),
+    signal,
+  });
+  if (!response.ok) {
+    let detail: unknown;
+    try {
+      detail = (await response.json()).detail;
+    } catch {
+      /* 非 JSON 错误体 */
+    }
+    throw new Error(
+      typeof detail === "string" ? detail : "发送失败，请稍后重试",
+    );
+  }
+  if (!response.body) throw new Error("当前浏览器不支持流式响应");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  let result: ChatStreamResult | null = null;
+  let streamError: string | null = null;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let index: number;
+    while ((index = buffer.indexOf("\n\n")) >= 0) {
+      const parsed = parseSseBlock(buffer.slice(0, index));
+      buffer = buffer.slice(index + 2);
+      if (!parsed) continue;
+      const payload = parsed.data as Record<string, unknown>;
+      if (parsed.event === "meta") {
+        onMeta?.({
+          context: payload.context as ChatContextSummary,
+          model_label: String(payload.model_label ?? ""),
+        });
+      } else if (parsed.event === "delta") {
+        const delta = typeof payload.content === "string" ? payload.content : "";
+        if (delta) {
+          content += delta;
+          onDelta(delta);
+        }
+      } else if (parsed.event === "done") {
+        result = {
+          content,
+          model: String(payload.model ?? ""),
+          model_label: String(payload.model_label ?? ""),
+          finish_reason: String(payload.finish_reason ?? "stop"),
+          context: (payload.context as ChatContextSummary) ?? null,
+        };
+      } else if (parsed.event === "error") {
+        streamError =
+          typeof payload.detail === "string"
+            ? payload.detail
+            : "模型服务暂时不可用，请稍后重试";
+      }
+    }
+  }
+  if (streamError) throw new Error(streamError);
+  if (!result) throw new Error("回答中断，请重试");
+  return result;
+}
