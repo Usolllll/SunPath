@@ -43,6 +43,23 @@ class ProfileIn(BaseModel):
     physical: dict[str, object] | None = None
     intent_types: list[str] | None = None
     subscription: dict[str, object] | None = None
+    # v3 加分与专项资格：只登记，不自动折算位次（省考试院认定为准）
+    bonus_points: int = Field(default=0, ge=0, le=20)
+    bonus_type: Literal['none', 'minority', 'martyr', 'overseas_chinese', 'veteran', 'other'] = 'none'
+    special_programs: list[Literal['国家专项', '地方专项', '高校专项']] = Field(default_factory=list, max_length=3)
+
+    @field_validator('special_programs')
+    @classmethod
+    def unique_special_programs(cls, v):
+        return list(dict.fromkeys(v))
+
+    @field_validator('bonus_points', 'bonus_type', 'special_programs', mode='before')
+    @classmethod
+    def bonus_defaults(cls, v, info):
+        """历史画像可能没有这些字段（NULL），按缺省值处理，避免回读报错。"""
+        if v is not None:
+            return v
+        return {'bonus_points': 0, 'bonus_type': 'none', 'special_programs': []}[info.field_name]
 
     @field_validator('subscription')
     @classmethod

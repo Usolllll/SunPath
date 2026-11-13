@@ -57,7 +57,7 @@ def detail(group_id: int, province: str = '浙江', year: int = Query(2026, ge=2
     group = next((g for g in load_groups(db) if g.id == group_id), None)
     if not group:
         raise HTTPException(404, '专业组不存在')
-    return serialize_group(group, province, year)
+    return serialize_group(group, province, year, with_plan_trend=True)
 
 
 @router.get('/recommendations')

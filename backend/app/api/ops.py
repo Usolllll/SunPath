@@ -4,22 +4,33 @@
 - ``/audit``、``/profile-completeness``：需登录，且只处理当前用户数据；
 - ``/faq``、``/dictionary``、``/data-quality``、``/popularity``：公开只读，便于运营页直接展示。
 """
+from typing import Literal
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import current_user, require_admin
-from app.models.entities import AuditLog, Favorite, University, User
+from app.models.entities import AuditLog, DataVersion, Favorite, University, User
 from app.services import audit
+from app.services import config_view
+from app.services import data_versions
 from app.services import dictionary as dictionary_service
 from app.services import faq as faq_service
+from app.services import permissions as permissions_service
 from app.services import quality as quality_service
 from app.services import report as report_service
 
 router = APIRouter(prefix='/ops', tags=['运营与数据质量'])
+
+
+class ReviewIn(BaseModel):
+    decision: Literal['approved', 'rejected']
+    note: str | None = Field(default=None, max_length=200)
+
 
 # 画像完整度权重（合计 100）：基础四要素权重最高，偏好与决策维度次之。
 COMPLETENESS_WEIGHTS = (
@@ -164,3 +175,48 @@ def report_export(request: Request, days: int = Query(30, ge=7, le=90),
         media_type='text/csv; charset=utf-8',
         headers={'Content-Disposition': f'attachment; filename="{report_service.report_filename()}"'},
     )
+
+
+# ------------------------------------------------- 数据版本审核与发布（M3-05）
+@router.get('/data-versions')
+def data_version_list(status: str = Query('', max_length=20),
+                      admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """数据版本台账（仅管理员）：审核状态、当前版本与来源，可按 pending/approved/rejected 过滤。"""
+    if status and status not in data_versions.REVIEW_LABELS:
+        raise HTTPException(422, '审核状态只能是 pending / approved / rejected')
+    return data_versions.list_versions(db, status or None)
+
+
+@router.post('/data-versions/{version_id}/review')
+def data_version_review(version_id: int, body: ReviewIn, request: Request,
+                        admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """审核数据版本（仅管理员）：通过即发布为当前版本，驳回则标记不可用；均写审计。"""
+    version = db.get(DataVersion, version_id)
+    if not version:
+        raise HTTPException(404, '数据版本不存在')
+    try:
+        payload = data_versions.review(db, version, body.decision, body.note, admin.email)
+    except data_versions.DataVersionError as error:
+        db.rollback()
+        raise HTTPException(422, str(error)) from None
+    audit.log_action(
+        db, admin, 'data_version.review', target=f'version:{version_id}',
+        detail={'decision': body.decision, 'dataset': version.dataset,
+                'province': version.province, 'exam_year': version.exam_year},
+        request=request,
+    )
+    db.commit()
+    return payload
+
+
+# ------------------------------------------------- 系统配置与权限审计（M10-05 / M10-03）
+@router.get('/system-config')
+def system_config(admin: User = Depends(require_admin)):
+    """系统参数与接口配置（仅管理员、只读、脱敏）：修改仍走 backend/.env。"""
+    return config_view.build()
+
+
+@router.get('/permissions')
+def permission_audit(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """权限审计（仅管理员）：账号角色计数、最近登录与管理员操作，邮箱脱敏。"""
+    return permissions_service.build(db)

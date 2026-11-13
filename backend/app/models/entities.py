@@ -34,6 +34,10 @@ class Profile(Base):
     physical: Mapped[dict | None] = mapped_column(JSON, default=None)                        # 体检项
     intent_types: Mapped[list | None] = mapped_column(JSON, default=None)                    # 强基/综评/专项...
     subscription: Mapped[dict | None] = mapped_column(JSON, default=None)                     # 订阅偏好（征集提醒/政策/宣讲、渠道、提前天数）
+    # v3: 加分与专项资格（只登记，不自动改变位次；以省考试院认定为准）
+    bonus_points: Mapped[int | None] = mapped_column(Integer, default=0)                      # 政策性加分分值 0–20
+    bonus_type: Mapped[str | None] = mapped_column(String(30), default='none')                 # 加分类型枚举键
+    special_programs: Mapped[list | None] = mapped_column(JSON, default=None)                 # 国家专项/地方专项/高校专项
     user: Mapped['User'] = relationship(back_populates='profile')
 
 class University(Base):
@@ -199,6 +203,11 @@ class DataVersion(Base):
     is_current: Mapped[bool] = mapped_column(Boolean, default=True)
     row_count: Mapped[int | None] = mapped_column(Integer, default=None)
     note: Mapped[str | None] = mapped_column(String(200), default=None)
+    # v3: 数据版本审核与发布（FR-M3-05）：pending / approved / rejected
+    review_status: Mapped[str] = mapped_column(String(20), default='pending')
+    reviewed_by: Mapped[str | None] = mapped_column(String(254), default=None)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    review_note: Mapped[str | None] = mapped_column(String(200), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

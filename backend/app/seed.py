@@ -95,7 +95,11 @@ def seed():
                         rank = max(100, round(local_rank * factor))
                         score = max(440, min(710, round(708 - (rank ** .49) * .48 - pi * 2 + yi)))
                         db.add(Admission(group_id=group.id, province=province, year=year, min_score=score, min_rank=rank))
-                    db.add(Enrollment(group_id=group.id, province=province, year=2026, count=12 + (index * 7 + offset * 3 + pi) % 48))
+                    base_plan = 12 + (index * 7 + offset * 3 + pi) % 48
+                    # 2023–2026 模拟招生计划：仅用于演示“计划年度对比”，非官方数据
+                    for year, delta in ((2023, -3), (2024, -1), (2025, 2), (2026, 0)):
+                        db.add(Enrollment(group_id=group.id, province=province, year=year,
+                                          count=max(2, base_plan + delta)))
         for name, card in major_cards().items():
             if db.scalar(select(MajorCatalog).where(MajorCatalog.name == name)):
                 continue

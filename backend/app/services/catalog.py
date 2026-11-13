@@ -8,11 +8,11 @@ DISCLAIMER = '全部招生与录取数据为模拟样本；冲稳保为规则估
 def load_groups(db: Session):
     return db.scalars(select(MajorGroup).options(selectinload(MajorGroup.university), selectinload(MajorGroup.admissions), selectinload(MajorGroup.enrollments))).all()
 
-def serialize_group(group, province, year):
+def serialize_group(group, province, year, with_plan_trend=False):
     university = group.university
     history = sorted([a for a in group.admissions if a.province == province and year - 3 <= a.year < year], key=lambda a: a.year)
     enrollment = next((p for p in group.enrollments if p.province == province and p.year == year), None)
-    return {
+    result = {
         'id': group.id, 'code': group.code, 'name': group.name, 'majors': group.majors,
         'required_subjects': group.required_subjects, 'tuition': group.tuition,
         'tuition_type': group.tuition_type, 'accommodation': group.accommodation,
@@ -28,6 +28,17 @@ def serialize_group(group, province, year):
         'latest_score': history[-1].min_score if history else None,
         'data_label': '模拟数据',
     }
+    if with_plan_trend:
+        trend = sorted(
+            [{'year': p.year, 'seats': p.count} for p in group.enrollments if p.province == province],
+            key=lambda item: item['year'],
+        )
+        for index, item in enumerate(trend):
+            previous = trend[index - 1]['seats'] if index else None
+            item['change'] = None if previous in (None, 0) else round((item['seats'] - previous) / previous * 100, 1)
+        result['plan_trend'] = trend
+        result['plan_trend_label'] = '模拟样本 · 计划数仅用于演示'
+    return result
 
 def require_profile(user):
     if not user.profile:

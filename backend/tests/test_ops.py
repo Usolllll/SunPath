@@ -31,7 +31,7 @@ from sqlalchemy import delete, select
 from app.core.config import get_settings
 from app.core.database import SessionLocal, engine
 from app.main import app
-from app.models.entities import AuditLog, Favorite, Message, Plan, Profile, University
+from app.models.entities import AuditLog, DataVersion, Favorite, Message, Plan, Profile, University
 from app.schemas.dto import PROVINCES
 from app.seed import seed
 
@@ -149,7 +149,7 @@ class OpsTests(unittest.TestCase):
         self.assertEqual(simulated['universities'], 60)
         self.assertEqual(simulated['groups'], 120)
         self.assertEqual(simulated['admissions'], 60 * 2 * len(PROVINCES) * 3)
-        self.assertEqual(simulated['enrollments'], 60 * 2 * len(PROVINCES))
+        self.assertEqual(simulated['enrollments'], 60 * 2 * len(PROVINCES) * 4)
         self.assertGreater(simulated['major_cards'], 0)
 
         real = data['real']
@@ -556,6 +556,127 @@ class OpsTests(unittest.TestCase):
         self.assertTrue(audit_rows)
         self.assertEqual(audit_rows[0].user_id, account['id'])
         self.assertEqual((audit_rows[0].detail or {}).get('days'), 30)
+
+    # -------------------------------------- 数据版本审核与发布（M3-05）
+    def version_row(self, current=False, review_status='pending', dataset='测试数据集'):
+        with SessionLocal() as db:
+            version = DataVersion(
+                dataset=dataset, province='浙江', exam_year=2026,
+                source_url='https://example.edu.cn/notice', fetched_at='2026-11-13T00:00:00+08:00',
+                content_sha256='a' * 64, parser_version='test@1.0.0', doc_status='已导入',
+                is_current=current, review_status=review_status, row_count=10,
+            )
+            db.add(version)
+            db.commit()
+            db.refresh(version)
+            return version.id
+
+    def test_data_version_review_publish_and_audit(self):
+        candidate = self.register('普通考生')
+        admin = self.register('管理员')
+        old_id = self.version_row(current=True, review_status='approved')
+        new_id = self.version_row(current=False)
+
+        self.assertEqual(self.client.get('/api/ops/data-versions').status_code, 401)
+        with self.admin_mode(None):
+            self.assertEqual(self.client.get('/api/ops/data-versions',
+                                             headers=candidate['headers']).status_code, 403)
+        with self.admin_mode(admin['email']):
+            listing = self.client.get('/api/ops/data-versions', headers=admin['headers'])
+            self.assertEqual(listing.status_code, 200, listing.text)
+            data = listing.json()
+            for key in ('total', 'counts', 'current', 'items', 'note'):
+                self.assertIn(key, data)
+            self.assertGreaterEqual(data['counts']['pending'], 1)
+            self.assertEqual(self.client.get('/api/ops/data-versions', params={'status': 'x'},
+                                             headers=admin['headers']).status_code, 422)
+
+            rejected = self.client.post(f'/api/ops/data-versions/{new_id}/review',
+                                        json={'decision': 'rejected', 'note': '来源不符'},
+                                        headers=admin['headers'])
+            self.assertEqual(rejected.status_code, 200, rejected.text)
+            self.assertEqual(rejected.json()['review_status'], 'rejected')
+            self.assertFalse(rejected.json()['is_current'])
+
+            approved = self.client.post(f'/api/ops/data-versions/{new_id}/review',
+                                        json={'decision': 'approved', 'note': '已核对公告'},
+                                        headers=admin['headers'])
+            self.assertEqual(approved.status_code, 200, approved.text)
+            body = approved.json()
+            self.assertEqual(body['review_status'], 'approved')
+            self.assertTrue(body['is_current'])
+            self.assertEqual(body['reviewed_by'], admin['email'])
+            self.assertTrue(body['reviewed_at'])
+
+            self.assertEqual(self.client.post('/api/ops/data-versions/999999/review',
+                                              json={'decision': 'approved'},
+                                              headers=admin['headers']).status_code, 404)
+            self.assertEqual(self.client.post(f'/api/ops/data-versions/{new_id}/review',
+                                              json={'decision': 'unknown'},
+                                              headers=admin['headers']).status_code, 422)
+
+        with SessionLocal() as db:
+            old = db.get(DataVersion, old_id)
+            new = db.get(DataVersion, new_id)
+            self.assertFalse(old.is_current)
+            self.assertTrue(new.is_current)
+            audit_row = db.scalars(select(AuditLog).where(
+                AuditLog.action == 'data_version.review').order_by(AuditLog.id.desc())).first()
+            self.assertIsNotNone(audit_row)
+            self.assertEqual(audit_row.user_id, admin['id'])
+
+    # -------------------------------------- 系统配置与权限审计（M10-05 / M10-03）
+    def test_admin_system_config_masks_secrets(self):
+        candidate = self.register('普通考生')
+        admin = self.register('管理员')
+        self.assertEqual(self.client.get('/api/ops/system-config').status_code, 401)
+        with self.admin_mode(None):
+            self.assertEqual(self.client.get('/api/ops/system-config',
+                                             headers=candidate['headers']).status_code, 403)
+        with self.admin_mode(admin['email']):
+            response = self.client.get('/api/ops/system-config', headers=admin['headers'])
+        self.assertEqual(response.status_code, 200, response.text)
+        data = response.json()
+        for key in ('app', 'database', 'security', 'ai', 'map', 'note'):
+            self.assertIn(key, data)
+        self.assertEqual(data['app']['name'], 'SunPath 阳光志愿')
+        self.assertIn(data['database']['backend'], {'SQLite', 'mysql', 'unknown'})
+        self.assertIn('jwt_expire_minutes', data['security'])
+        self.assertIn('provider', data['ai'])
+        self.assertIn('provider', data['map'])
+        self.assertNotIn('jwt_secret', response.text)
+        self.assertNotIn('deepseek_api_key', response.text)
+        self.assertNotIn('password', response.text.lower())
+
+    def test_admin_permission_audit_masks_emails(self):
+        candidate = self.register('普通考生')
+        admin = self.register('管理员')
+        with SessionLocal() as db:
+            db.add(AuditLog(user_id=candidate['id'], action='auth.login', target=f'user:{candidate["id"]}'))
+            db.add(AuditLog(user_id=admin['id'], action='data_version.review', target='version:1',
+                            detail={'decision': 'approved'}))
+            db.commit()
+        self.assertEqual(self.client.get('/api/ops/permissions').status_code, 401)
+        with self.admin_mode(None):
+            self.assertEqual(self.client.get('/api/ops/permissions',
+                                             headers=candidate['headers']).status_code, 403)
+        with self.admin_mode(admin['email']):
+            response = self.client.get('/api/ops/permissions', headers=admin['headers'])
+        self.assertEqual(response.status_code, 200, response.text)
+        data = response.json()
+        for key in ('users', 'admins', 'recent_logins', 'admin_actions', 'denied_count', 'note'):
+            self.assertIn(key, data)
+        self.assertGreaterEqual(data['users']['total'], 2)
+        self.assertEqual(data['users']['total'], data['users']['admins'] + data['users']['candidates'])
+        emails = [item['email'] for item in data['admins']]
+        emails += [item['email'] for item in data['recent_logins']]
+        emails += [item['email'] for item in data['admin_actions']]
+        self.assertTrue(emails)
+        for masked in emails:
+            self.assertIn('***', masked)
+            self.assertNotIn(candidate['email'], masked)
+            self.assertNotIn(admin['email'], masked)
+        self.assertNotIn('password', response.text.lower())
 
 
 if __name__ == '__main__':
