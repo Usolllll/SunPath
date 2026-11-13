@@ -85,6 +85,52 @@ class LLMTests(unittest.IsolatedAsyncioTestCase):
             output, _ = await llm.complete_json('Return JSON only.', {'allowed': [1, 2]})
         self.assertEqual(output, {'group_ids': [1, 2]})
 
+    async def test_stream_parses_sse_deltas_and_reports_done(self):
+        def handler(request):
+            payload = json.loads(request.content)
+            self.assertTrue(payload['stream'])
+            self.assertEqual(payload['max_tokens'], 1600)
+            body = (
+                'data: {"choices":[{"delta":{"content":"平行"}}]}\n\n'
+                'data: {"choices":[{"delta":{"content":"志愿"}}]}\n\n'
+                'data: {"choices":[{"delta":{"content":"规则"},"finish_reason":"stop"}]}\n\n'
+                'data: [DONE]\n\n'
+            )
+            return httpx.Response(200, content=body.encode('utf-8'),
+                                  headers={'content-type': 'text/event-stream'})
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        with patch.object(llm, 'get_settings', return_value=self.settings), patch.object(llm, '_make_client', return_value=client):
+            events = [event async for event in llm.stream(self.messages)]
+        self.assertEqual([event['type'] for event in events], ['delta', 'delta', 'delta', 'done'])
+        self.assertEqual(''.join(event['content'] for event in events if event['type'] == 'delta'), '平行志愿规则')
+        done = events[-1]
+        self.assertEqual(done['finish_reason'], 'stop')
+        self.assertEqual(done['model'], self.settings.deepseek_model)
+
+    async def test_stream_error_and_empty_response_are_events_not_exceptions(self):
+        self.settings.deepseek_api_key = SecretStr('')
+        self.settings.deepseek_base_url = 'https://text.pollinations.ai/openai'
+
+        def limited(request):
+            return httpx.Response(402, text='rate limited')
+        client = httpx.AsyncClient(transport=httpx.MockTransport(limited))
+        with patch.object(llm, 'get_settings', return_value=self.settings), patch.object(llm, '_make_client', return_value=client):
+            events = [event async for event in llm.stream(self.messages)]
+        self.assertEqual(events[0]['type'], 'error')
+        self.assertEqual(events[0]['status'], 503)
+        self.assertIn('限速', events[0]['detail'])
+
+        def empty(request):
+            return httpx.Response(200, content=b'data: [DONE]\n\n',
+                                  headers={'content-type': 'text/event-stream'})
+        client = httpx.AsyncClient(transport=httpx.MockTransport(empty))
+        with patch.object(llm, 'get_settings', return_value=self.settings), patch.object(llm, '_make_client', return_value=client):
+            events = [event async for event in llm.stream(self.messages)]
+        self.assertEqual(events[0]['type'], 'error')
+        self.assertEqual(events[0]['status'], 502)
+
+
     async def test_missing_key_never_calls_provider(self):
         self.settings.deepseek_api_key = SecretStr('')
         with patch.object(llm, 'get_settings', return_value=self.settings), patch.object(llm, '_make_client') as client:
