@@ -49,6 +49,10 @@ import type {
   StudyAbroadOptions,
   StudyAbroadState,
   StudyAbroadTargetPayload,
+  DataVersionList,
+  DataVersionItem,
+  SystemConfig,
+  PermissionAudit,
 } from "./types";
 export const api = {
   chatConfig: () =>
@@ -166,6 +170,20 @@ export const api = {
     http.get<OpsReport>("/ops/report", { params: { days } }),
   opsReportExport: (days = 30) =>
     http.get<Blob>("/ops/report/export", { params: { days }, responseType: "blob" }),
+  /** v3（M3-05）：数据版本台账与审核发布（仅管理员） */
+  dataVersions: (status?: string) =>
+    http.get<DataVersionList>("/ops/data-versions", {
+      params: status ? { status } : {},
+    }),
+  reviewDataVersion: (id: number, decision: "approved" | "rejected", note?: string) =>
+    http.post<DataVersionItem>(`/ops/data-versions/${id}/review`, {
+      decision,
+      note: note || null,
+    }),
+  /** v3（M10-05）：系统参数与接口配置（只读，仅管理员） */
+  systemConfig: () => http.get<SystemConfig>("/ops/system-config"),
+  /** v3（M10-03）：权限审计（仅管理员，邮箱已脱敏） */
+  permissionAudit: () => http.get<PermissionAudit>("/ops/permissions"),
   /** 一分一段（M4-02）：分数 → 位次参考；示例数据，不代表录取结果 */
   scoreSegment: (province: string, year: number, score: number) =>
     http.get<ScoreSegment>("/score-segment", { params: { province, year, score } }),

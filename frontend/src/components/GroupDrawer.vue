@@ -273,6 +273,27 @@ watch(
           星级来自已收录资料的粗分，仅作方向参考；实际政策请查阅学校教务处公告。
         </p>
       </div>
+      <h3>招生计划年度对比</h3>
+      <template v-if="group.plan_trend && group.plan_trend.length">
+        <el-table :data="group.plan_trend" size="small">
+          <el-table-column prop="year" label="年份" width="90" />
+          <el-table-column label="计划数" width="110">
+            <template #default="{ row }">{{ row.seats }} 人</template>
+          </el-table-column>
+          <el-table-column label="同比变化">
+            <template #default="{ row }">
+              <span v-if="row.change == null" class="muted">—</span>
+              <span v-else :class="{ 'trend-up': row.change > 0, 'trend-down': row.change < 0 }">
+                {{ row.change > 0 ? "+" : "" }}{{ row.change }}%
+              </span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <p class="notice compact">
+          {{ group.plan_trend_label || "模拟样本" }}：计划数逐年对比仅用于演示，正式填报以高校当年招生计划为准。
+        </p>
+      </template>
+      <el-empty v-else description="该专业组暂无分年计划数据" :image-size="60" />
       <h3>历年录取位次趋势</h3>
       <p
         v-if="group.history_rank_min != null && group.history_rank_max != null"
@@ -488,5 +509,11 @@ watch(
 .drawer-physical-note > svg {
   flex-shrink: 0;
   margin-top: 2px;
+}
+.trend-up {
+  color: #c26a4a;
+}
+.trend-down {
+  color: #4f8a6b;
 }
 </style>

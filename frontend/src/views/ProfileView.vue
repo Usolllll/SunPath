@@ -54,6 +54,9 @@ const form = reactive<Profile>(
         interests: null,
         physical: null,
         intent_types: null,
+        bonus_points: 0,
+        bonus_type: "none",
+        special_programs: [],
       },
 );
 const subjects = ["物理", "化学", "生物", "历史", "政治", "地理"];
@@ -83,6 +86,24 @@ const physical = reactive<{
   corrected_vision: form.physical?.corrected_vision ?? undefined,
 });
 const interests = ref<Interests>(form.interests ? { ...form.interests } : {});
+// v3 加分与专项资格（只登记；位次仍按裸分口径，不自动折算）
+const BONUS_TYPES: { value: NonNullable<Profile["bonus_type"]>; label: string }[] = [
+  { value: "none", label: "无 / 暂不填写" },
+  { value: "minority", label: "少数民族" },
+  { value: "martyr", label: "烈士子女" },
+  { value: "overseas_chinese", label: "归侨、华侨子女" },
+  { value: "veteran", label: "自主就业退役士兵" },
+  { value: "other", label: "其他（以省考试院认定为准）" },
+];
+const SPECIAL_PROGRAMS = ["国家专项", "地方专项", "高校专项"];
+const bonusPoints = ref<number>(form.bonus_points ?? 0);
+const bonusType = ref<NonNullable<Profile["bonus_type"]>>(
+  form.bonus_type ?? "none",
+);
+const specialPrograms = ref<string[]>(
+  form.special_programs ? [...form.special_programs] : [],
+);
+const effectiveScore = computed(() => form.score + (bonusPoints.value || 0));
 const budgetYuan = computed(() => {
   if (typeof budgetWan.value !== "number" || Number.isNaN(budgetWan.value))
     return null;
@@ -190,6 +211,9 @@ async function save() {
   form.interests = Object.keys(interests.value).length
     ? interests.value
     : null;
+  form.bonus_points = bonusPoints.value || 0;
+  form.bonus_type = bonusType.value;
+  form.special_programs = specialPrograms.value;
   try {
     auth.user = (await api.profile(form)).data;
     ElMessage.success("考生画像已保存，推荐将按最新画像计算");
@@ -364,6 +388,43 @@ async function save() {
             }}；用于超预算提示，不会隐藏候选</small
           ><small v-else>不填表示暂不设置预算，仍会显示四年成本估算</small></label
         >
+      </div>
+      <div class="bonus-block">
+        <h4><Info :size="15" />加分与专项资格（只登记，不自动折算位次）</h4>
+        <div class="bonus-grid">
+          <label
+            >政策性加分（0–20 分）<el-input-number
+              v-model="bonusPoints"
+              :min="0"
+              :max="20"
+              :step="1"
+              controls-position="right"
+            /><small>投档分参考（高考分 + 加分）：{{ effectiveScore }} 分</small></label
+          >
+          <label
+            >加分类型<el-select v-model="bonusType">
+              <el-option
+                v-for="item in BONUS_TYPES"
+                :key="item.value"
+                :value="item.value"
+                :label="item.label"
+              /> </el-select
+          ></label>
+          <label
+            >专项资格（可多选）<el-checkbox-group v-model="specialPrograms"
+              ><el-checkbox
+                v-for="item in SPECIAL_PROGRAMS"
+                :key="item"
+                :value="item"
+                >{{ item }}</el-checkbox
+              ></el-checkbox-group
+            ></label
+          >
+        </div>
+        <p class="bonus-hint">
+          <Info :size="13" />系统只做登记与投档分参考，<strong>不会自动折算位次</strong>，也不改变冲稳保候选池；
+          资格认定、加分分值与是否适用于目标院校以省考试院和高校招生章程为准。
+        </p>
       </div>
       <div class="physical-block">
         <h4><Stethoscope :size="15" />体检简项（用于报考准备清单提示）</h4>

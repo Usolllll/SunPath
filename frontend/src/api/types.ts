@@ -27,6 +27,10 @@ export interface Profile {
   interests?: Partial<Record<"R" | "I" | "A" | "S" | "E" | "C", number>> | null;
   physical?: PhysicalInfo | null;
   intent_types?: string[] | null;
+  /** v3 加分与专项资格：只登记，不自动折算位次（省考试院认定为准） */
+  bonus_points?: number;
+  bonus_type?: "none" | "minority" | "martyr" | "overseas_chinese" | "veteran" | "other";
+  special_programs?: string[];
 }
 export interface User {
   id: number;
@@ -171,6 +175,9 @@ export interface Group {
   official?: OfficialCheck | null;
   /** RTM：体检相关提示（只提示、不过滤候选人；无体检数据时为 [] 或缺失） */
   physical_flags?: PhysicalFlag[];
+  /** v3：招生计划年度对比（模拟样本，仅详情接口返回） */
+  plan_trend?: { year: number; seats: number; change: number | null }[];
+  plan_trend_label?: string;
 }
 /** 一条体检提示：level 只决定黄/红提示色，不构成报考资格认定，更不代表录取概率 */
 export interface PhysicalFlag {
@@ -886,4 +893,85 @@ export interface StudyAbroadState {
   target: StudyAbroadTarget | null;
   plan: StudyAbroadPlan | null;
   disclaimer: string;
+}
+
+// ---------------------------------------------------------------- v3 管理员：数据版本审核 / 系统配置 / 权限审计
+export type DataVersionReviewStatus = "pending" | "approved" | "rejected";
+export interface DataVersionItem {
+  id: number;
+  dataset: string;
+  province: string | null;
+  exam_year: number | null;
+  source_url: string;
+  published_at: string | null;
+  fetched_at: string;
+  parser_version: string;
+  doc_status: string;
+  row_count: number | null;
+  is_current: boolean;
+  review_status: DataVersionReviewStatus;
+  review_status_label: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  content_sha256: string;
+  note: string | null;
+  created_at: string | null;
+}
+export interface DataVersionList {
+  total: number;
+  counts: Record<DataVersionReviewStatus, number>;
+  current: number;
+  items: DataVersionItem[];
+  note: string;
+}
+export interface SystemConfig {
+  app: {
+    name: string;
+    version: string;
+    python: string;
+    env_file: boolean;
+  };
+  database: {
+    backend: string;
+    host?: string;
+    database?: string;
+    location?: string;
+    secure: boolean;
+  };
+  security: {
+    jwt_expire_minutes: number;
+    cors_origins: string[];
+    demo_account: boolean;
+    admin_emails: string[];
+    admin_count: number;
+  };
+  ai: {
+    provider: string;
+    base_url_host: string;
+    model: string;
+    model_label: string;
+    key_configured: boolean;
+    keyless_channel: boolean;
+    ready: boolean;
+    timeout_seconds: number;
+  };
+  map: {
+    provider: string;
+    tianditu_key_configured: boolean;
+  };
+  note: string;
+}
+export interface PermissionAudit {
+  users: { total: number; admins: number; candidates: number };
+  admins: { email: string; name: string }[];
+  recent_logins: { email: string; at: string | null }[];
+  admin_actions: {
+    action: string;
+    target: string | null;
+    email: string;
+    at: string | null;
+  }[];
+  denied_count: number;
+  note: string;
 }

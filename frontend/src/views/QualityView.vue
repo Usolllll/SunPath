@@ -27,6 +27,8 @@ import type {
 import { date, downloadBlob, number } from "../utils/format";
 import { coverageText, safeSourceUrl, yearSpan } from "../utils/realdata";
 import { patrolCheckedText } from "../utils/rtm";
+import DataVersionPanel from "../components/DataVersionPanel.vue";
+import SystemConfigPanel from "../components/SystemConfigPanel.vue";
 const router = useRouter();
 const quality = ref<DataQuality | null>(null);
 const popularity = ref<PopularityItem[]>([]);
@@ -379,58 +381,8 @@ async function exportReport() {
           运营数据加载失败，请点击右上角「刷新」重试。
         </p>
       </section>
-      <section class="panel quality-card quality-wide">
-        <div class="quality-card-head">
-          <h3><Activity :size="16" />数据版本台账</h3>
-          <span class="tag subtle">按导入批次留痕</span>
-        </div>
-        <el-table
-          v-if="quality.versions.length"
-          :data="quality.versions"
-          size="small"
-          class="version-table"
-        >
-          <el-table-column label="数据集" min-width="90"
-            ><template #default="{ row }">{{ row.dataset }}</template></el-table-column
-          >
-          <el-table-column label="省份 / 年份" min-width="110"
-            ><template #default="{ row }">{{
-              [row.province, row.exam_year].filter(Boolean).join(" · ") ||
-              "—"
-            }}</template></el-table-column
-          >
-          <el-table-column label="行数" width="100"
-            ><template #default="{ row }">{{
-              number(row.row_count)
-            }}</template></el-table-column
-          >
-          <el-table-column label="发布于" width="110"
-            ><template #default="{ row }">{{
-              row.published_at || "未标注"
-            }}</template></el-table-column
-          >
-          <el-table-column label="状态" width="90"
-            ><template #default="{ row }"
-              ><span class="tag" :class="{ warm: row.is_current }">{{
-                row.doc_status || (row.is_current ? "当前版本" : "历史版本")
-              }}</span></template
-            ></el-table-column
-          >
-          <el-table-column label="公告" width="108"
-            ><template #default="{ row }"
-              ><a
-                v-if="sourceOf(row.source_url)"
-                :href="sourceOf(row.source_url) || '#'"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="version-link"
-                >查看公告 ↗</a
-              ><span v-else class="muted">未收录</span></template
-            ></el-table-column
-          >
-        </el-table>
-        <p v-else class="quality-note">暂无数据版本记录。</p>
-      </section>
+      <DataVersionPanel />
+      <SystemConfigPanel />
       <section class="panel quality-card">
         <div class="quality-card-head">
           <h3><Activity :size="16" />数据源巡检</h3>

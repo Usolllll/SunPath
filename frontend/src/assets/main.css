@@ -4248,6 +4248,63 @@ svg {
 .physical-hint > svg {
   margin-top: 2px;
 }
+.bonus-block {
+  margin-top: 20px;
+  border-top: 1px dashed #e9edf4;
+  padding-top: 16px;
+}
+.bonus-block h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #5b7294;
+}
+.bonus-block h4 > svg {
+  color: #8aa4c6;
+}
+.bonus-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1.4fr;
+  gap: 14px 18px;
+  align-items: start;
+  margin-top: 13px;
+}
+.bonus-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 11px;
+  color: #7e8da2;
+}
+.bonus-grid small {
+  font-size: 9px;
+  color: #9aa8ba;
+}
+.bonus-grid .el-select {
+  width: 100%;
+}
+.bonus-grid .el-checkbox-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.bonus-hint {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin-top: 13px;
+  font-size: 9px;
+  color: #a6b0bf;
+  line-height: 1.8;
+}
+.bonus-hint > svg {
+  margin-top: 2px;
+}
+.bonus-hint strong {
+  color: #8c98a8;
+  font-weight: 600;
+}
 .interest-panel {
   margin-top: 24px;
   padding: 22px 24px;
